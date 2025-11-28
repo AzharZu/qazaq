@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row gy-4">
+    <div class="col-lg-8">
+        <h2 class="fw-bold mb-1">С возвращением, {{ user.email }}!</h2>
+        {% if course %}
+        <h5 class="text-muted">Ваш курс: {{ course.name }}</h5>
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <p class="text-uppercase text-muted small mb-1">{{ course.audience }}</p>
+                <p class="text-muted">{{ course.description }}</p>
+                <p class="mb-1 fw-semibold">Пройдено уроков: {{ completed }} из {{ total }}</p>
+                <p class="mb-3 text-muted">Осталось: {{ remaining }}</p>
+                <div class="progress mb-3" style="height: 10px;">
+                    <div class="progress-bar" role="progressbar" style="width: {{ progress }}%;"></div>
+                </div>
+                <p class="text-muted mb-3">Время обучения: {{ hours }} ч.</p>
+                <a href="/course/{{ course.slug }}" class="btn btn-outline-primary me-2">К курсу</a>
+                {% if next_lesson %}
+                <a href="/lesson/{{ next_lesson.id }}" class="btn btn-primary">Продолжить → {{ next_lesson.title }}</a>
+                {% else %}
+                <span class="text-success fw-semibold">Вы завершили весь курс! 🎉</span>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-light border">Нет выбранного курса. Пройдите <a href="/placement-test">placement-test</a>.</div>
+        {% endif %}
+    </div>
+    <div class="col-lg-4">
+        <div class="p-3 bg-light rounded-3 shadow-sm">
+            <h6 class="text-uppercase text-muted">Совет дня</h6>
+            <p class="mb-1 fw-semibold">Короткие сессии</p>
+            <p class="text-muted small mb-2">Учите 10–15 минут в день, чтобы закрепить лексику быстрее.</p>
+            <a href="/placement-test" class="btn btn-sm btn-outline-secondary">Пересдать тест</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

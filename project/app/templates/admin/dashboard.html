@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-4">Админ-панель</h2>
+<div class="row g-3">
+    <div class="col-md-2"><div class="card text-center shadow-sm"><div class="card-body"><div class="h5">{{ courses }}</div><div class="text-muted">Курсы</div></div></div></div>
+    <div class="col-md-2"><div class="card text-center shadow-sm"><div class="card-body"><div class="h5">{{ modules }}</div><div class="text-muted">Модули</div></div></div></div>
+    <div class="col-md-2"><div class="card text-center shadow-sm"><div class="card-body"><div class="h5">{{ lessons }}</div><div class="text-muted">Уроки</div></div></div></div>
+    <div class="col-md-2"><div class="card text-center shadow-sm"><div class="card-body"><div class="h5">{{ blocks }}</div><div class="text-muted">Блоки</div></div></div></div>
+    <div class="col-md-2"><div class="card text-center shadow-sm"><div class="card-body"><div class="h5">{{ flashcards }}</div><div class="text-muted">Карточки</div></div></div></div>
+    <div class="col-md-2"><div class="card text-center shadow-sm"><div class="card-body"><div class="h5">{{ quizzes }}</div><div class="text-muted">Quiz</div></div></div></div>
+</div>
+<div class="mt-4 d-flex gap-2">
+    <a class="btn btn-primary" href="/admin/courses">Курсы</a>
+</div>
+{% endblock %}

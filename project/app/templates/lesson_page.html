@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <p class="text-uppercase text-muted small mb-1">{{ lesson.module.course.name }} / {{ lesson.module.name }}</p>
+        <h2 class="fw-bold">{{ lesson.title }}</h2>
+        <p class="text-muted">{{ lesson.description }}</p>
+    </div>
+    <div class="text-end">
+        {% if progress_status %}
+        <span class="badge bg-success text-uppercase">{{ progress_status }}</span>
+        {% endif %}
+        <div class="small text-muted">{{ lesson.estimated_time or 10 }} минут · {{ lesson.difficulty or "easy" }}</div>
+    </div>
+    </div>
+
+{% for block in lesson.blocks %}
+    {% if block.block_type == "theory" %}
+    <div class="card mb-3 shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title">{{ block.content.title }}</h5>
+            <p class="card-text mb-0">{{ block.content.text }}</p>
+        </div>
+    </div>
+    {% elif block.block_type == "example" %}
+    <div class="card mb-3 shadow-sm">
+        <div class="card-body">
+            <h6 class="text-uppercase text-muted small mb-2">Примеры</h6>
+            <div class="table-responsive">
+                <table class="table mb-0">
+                    <thead>
+                        <tr><th>KZ</th><th>RU</th></tr>
+                    </thead>
+                    <tbody>
+                    {% set example_rows = block.content.rows if block.content.rows is defined else block.content.examples %}
+                    {% for row in example_rows %}
+                        <tr><td>{{ row.kz }}</td><td>{{ row.ru }}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% elif block.block_type == "flashcards" %}
+    {% set selected_ids = block.content.flashcard_ids if block.content.flashcard_ids is defined else [] %}
+    <div class="card mb-3 shadow-sm">
+        <div class="card-body">
+            <h6 class="text-uppercase text-muted small mb-2">{{ block.content.title or "Flashcards" }}</h6>
+            <div class="row g-3">
+                {% for card in lesson.flashcards if not selected_ids or card.id in selected_ids %}
+                <div class="col-md-4">
+                    <div class="flashcard p-3 border rounded-3 h-100">
+                        <div class="fw-bold">{{ card.front }}</div>
+                        <div class="text-muted">{{ card.back }}</div>
+                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="startPronunciation('{{ card.front }}', 'pronunciation-result-{{ card.id }}')">🎤 Айт / Произнеси</button>
+                        <p id="pronunciation-result-{{ card.id }}" class="small text-muted mb-0"></p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% elif block.block_type == "quiz" %}
+    {% set selected_ids = block.content.quiz_ids if block.content.quiz_ids is defined else [] %}
+    <div class="card mb-3 shadow-sm">
+        <div class="card-body">
+            <h6 class="text-uppercase text-muted small mb-2">{{ block.content.title or "Quiz" }}</h6>
+            {% for quiz in lesson.quizzes if not selected_ids or quiz.id in selected_ids %}
+            <div class="mb-3 border rounded-3 p-3">
+                <div class="fw-semibold mb-2">{{ quiz.question }}</div>
+                <ol class="list-group list-group-numbered">
+                    {% for opt in quiz.options %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ opt }}
+                        {% if loop.index0 == quiz.correct_option %}
+                        <span class="badge bg-success">верный</span>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ol>
+                {% if quiz.explanation %}<div class="text-muted small mt-2">{{ quiz.explanation }}</div>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% elif block.block_type == "story" %}
+    <div class="card mb-3 shadow-sm">
+        <div class="card-body">
+            {% if block.content.dialogue is defined %}
+                <h6 class="text-uppercase text-muted small mb-2">Диалог</h6>
+                {% for line in block.content.dialogue %}
+                <div class="d-flex mb-1">
+                    <div class="fw-semibold me-2">{{ line.speaker }}:</div>
+                    <div>{{ line.line }}</div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <h6 class="text-uppercase text-muted small mb-2">Ситуация</h6>
+                <p class="fw-semibold mb-1">{{ block.content.situation }}</p>
+                <p class="mb-2">{{ block.content.question }}</p>
+                <div class="list-group">
+                    {% for opt in block.content.options %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ opt }}
+                        {% if loop.index0 == block.content.correct_index %}<span class="badge bg-success">верный</span>{% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% elif block.block_type == "dragdrop" %}
+    <div class="card mb-3 shadow-sm">
+        <div class="card-body">
+            <h6 class="text-uppercase text-muted small mb-2">Drag & Drop</h6>
+            <p class="fw-semibold">{{ block.content.task }}</p>
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <div class="border rounded-3 p-2">
+                        <div class="text-muted small">Элементы</div>
+                        {% for part in block.content.parts %}
+                        <div class="badge bg-light text-dark me-1 mb-1">{{ part }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="border rounded-3 p-2">
+                        <div class="text-muted small">Правильный порядок</div>
+                        {% for item in block.content.correct_order %}
+                        <div class="badge bg-success me-1 mb-1">{{ item }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% elif block.block_type == "mascot_tip" %}
+    {% set mascot = block.content %}
+    {% include "components/mascot_tip.html" %}
+    {% elif block.block_type == "pronunciation" %}
+    <div class="card mb-3 shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title">{{ block.content.title or "Айтылым" }}</h5>
+            <div class="row g-2">
+                {% for word in block.content.words %}
+                {% set rid = "pronunciation-word-" ~ loop.index %}
+                <div class="col-md-4">
+                    <div class="border rounded-3 p-3 h-100 d-flex flex-column">
+                        <div class="fw-semibold fs-5 mb-2">{{ word }}</div>
+                        <button type="button" class="btn btn-sm btn-outline-primary mt-auto" onclick="startPronunciation('{{ word }}', '{{ rid }}')">🎤 Айт / Произнеси</button>
+                        <p id="{{ rid }}" class="small text-muted mb-0 mt-2"></p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% elif block.block_type == "image" %}
+    <div class="card mb-3 shadow-sm">
+        <img src="{{ block.content.url }}" class="card-img-top" alt="image block">
+    </div>
+    {% endif %}
+{% endfor %}
+{% if user %}
+    <div class="mt-4 d-flex justify-content-between align-items-center">
+        {% if progress_status == "done" %}
+        <span class="text-success fw-semibold">Урок завершён ✓</span>
+        {% elif progress_status %}
+        <span class="text-muted">Статус: {{ progress_status }}</span>
+        {% endif %}
+        <form method="post" action="/lesson/{{ lesson.id }}/complete" class="ms-auto">
+            <button class="btn btn-success" type="submit">Завершить урок ✓</button>
+        </form>
+    </div>
+{% endif %}
+<script src="{{ url_for('static', path='js/lesson.js') }}"></script>
+{% endblock %}

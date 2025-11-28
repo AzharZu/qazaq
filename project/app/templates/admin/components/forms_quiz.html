@@ -1,0 +1,23 @@
+<h6 class="text-uppercase text-muted">Quiz</h6>
+<p class="text-muted small">Выберите вопросы, которые попадут в блок теста. Видно текст вопроса и варианты.</p>
+{% set selected_quiz_ids = block.content.quiz_ids if block and block.content.quiz_ids is defined else [] %}
+{% if lesson.quizzes %}
+<div class="row g-2">
+    {% for quiz in lesson.quizzes %}
+    <div class="col-md-6">
+        <label class="list-group-item d-flex align-items-start gap-3 shadow-sm border-0 rounded">
+            <input class="form-check-input mt-1" type="checkbox" name="selected_quiz_ids" value="{{ quiz.id }}" {% if quiz.id in selected_quiz_ids %}checked{% endif %}>
+            <div class="flex-grow-1">
+                <div class="fw-semibold">{{ quiz.question }}</div>
+                {% if quiz.options %}
+                    <div class="text-muted small">Ответы: {{ quiz.options|join(", ") }}</div>
+                {% endif %}
+            </div>
+            <span class="badge bg-light text-dark">#{{ quiz.order }}</span>
+        </label>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-muted">Нет вопросов для этого урока. Добавьте их на странице Quizzes.</p>
+{% endif %}

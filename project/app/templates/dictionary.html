@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-section profile-shell">
+    <div class="d-flex justify-content-start mb-3">
+        <a href="/" class="btn-ghost text-decoration-none text-dark">Назад</a>
+    </div>
+    <h2 class="fw-bold text-center mb-4">Мой словарь</h2>
+
+    <div class="vstack gap-3">
+        {% for course_name, entries in grouped.items() %}
+        <div class="profile-card p-3">
+            <h5 class="mb-3">{{ course_name }}</h5>
+            {% if entries %}
+            <div class="vstack gap-2">
+                {% for entry in entries %}
+                <div class="d-flex align-items-start justify-content-between gap-3 badge-soft">
+                    <div>
+                        <div class="fw-semibold">{{ entry.word }}</div>
+                        <div class="text-muted small">{{ entry.translation }}</div>
+                        {% if entry.example %}<div class="text-muted small">Пример: {{ entry.example }}</div>{% endif %}
+                    </div>
+                    <form method="post" action="/dictionary/delete/{{ entry.id }}" class="m-0">
+                        <button class="gray-btn" type="submit">Удалить</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-muted small">Пока нет слов в этом курсе.</div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="text-muted text-center">Словарь пуст.</div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="lesson-band mb-4">
+    <div class="d-flex flex-column flex-md-row align-items-md-center gap-3 justify-content-between">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="nav-chip text-dark">Урок: {{ lesson.title }}</span>
+        </div>
+        <div class="flex-grow-1 mx-md-4">
+            <div class="progress progress-slim mb-1">
+                <div class="progress-bar" role="progressbar" style="width: {{ course_progress }}%;"></div>
+            </div>
+        </div>
+        <div class="small text-muted">{{ course_progress }}%</div>
+    </div>
+</div>
+
+{% set flashcards = lesson.flashcards or [] %}
+{% set primary_card = flashcards[0] if flashcards|length else None %}
+{% set secondary_card = flashcards[1] if flashcards|length > 1 else primary_card %}
+
+<section class="page-section">
+    <div class="d-flex justify-content-start mb-3">
+        <a href="/lesson/{{ lesson.id }}?view=theory" class="btn-ghost text-decoration-none text-dark">Назад</a>
+    </div>
+
+    <h2 class="fw-bold mb-4 text-center">Флэш-карточки</h2>
+
+    <div class="d-flex align-items-center justify-content-center gap-3 mb-4">
+        <span class="arrow-btn">←</span>
+        <div class="card-plate flex-grow-1 flashcard-stage">
+            {{ primary_card.front if primary_card else "Слово" }}
+        </div>
+        <span class="arrow-btn">→</span>
+    </div>
+
+    <div class="card-plate mb-4 d-flex flex-column flex-lg-row align-items-start gap-3">
+        <div class="flex-grow-1">
+            <div class="fw-semibold mb-2">{{ secondary_card.front if secondary_card else "Пример слова" }}</div>
+            <p class="mb-2">{{ secondary_card.back if secondary_card else "Добавьте перевод или описание для карточки." }}</p>
+            <p class="mb-0 text-muted">Пример: тексты и предложения появятся здесь.</p>
+        </div>
+        <div class="placeholder-md" style="max-width: 140px;"></div>
+    </div>
+
+    <div class="d-flex justify-content-end">
+        <a href="/lesson/{{ lesson.id }}?view=tasks" class="btn btn-dark">Перейти к заданиям</a>
+    </div>
+</section>
+{% endblock %}

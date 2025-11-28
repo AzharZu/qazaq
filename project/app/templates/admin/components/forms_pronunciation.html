@@ -1,0 +1,5 @@
+<div class="mb-3">
+    <label class="form-label">Список слов (одно на строку)</label>
+    <textarea name="words" class="form-control" rows="5" placeholder="әже&#10;өрік&#10;қала&#10;оң">{% if block and block.content.words is defined %}{{ block.content.words | join('\n') }}{% endif %}</textarea>
+    <small class="text-muted">Используйте короткий список для тренировки артикуляции. Каждое слово — с новой строки.</small>
+</div>

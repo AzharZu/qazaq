@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Flashcards урока "{{ lesson.title }}"</h3>
+    <a class="btn btn-primary" href="/admin/flashcards/add?lesson_id={{ lesson.id }}">Добавить карточку</a>
+</div>
+<table class="table table-striped">
+    <thead><tr><th>Order</th><th>Front</th><th>Back</th><th>Age</th><th></th></tr></thead>
+    <tbody>
+    {% for card in lesson.flashcards %}
+    <tr>
+        <td>{{ card.order }}</td>
+        <td>{{ card.front }}</td>
+        <td>{{ card.back }}</td>
+        <td>{{ card.age_group }}</td>
+        <td class="text-end">
+            <a class="btn btn-sm btn-outline-primary" href="/admin/flashcard/{{ card.id }}/edit">Редактировать</a>
+            <a class="btn btn-sm btn-outline-danger" href="/admin/flashcard/{{ card.id }}/delete">Удалить</a>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+<a href="/admin/module/{{ lesson.module_id }}/lessons" class="btn btn-outline-secondary">Назад</a>
+{% endblock %}

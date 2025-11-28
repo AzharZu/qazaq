@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h3 class="mb-3">Редактировать курс #{{ course.id }}</h3>
+<form method="post" class="card card-body shadow-sm">
+    <div class="mb-3">
+        <label class="form-label">Название</label>
+        <input type="text" name="name" class="form-control" value="{{ course.name }}" required>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Описание</label>
+        <textarea name="description" class="form-control" rows="3" required>{{ course.description }}</textarea>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Audience</label>
+        <select name="audience" class="form-select" required>
+            <option value="kids" {% if course.audience=='kids' %}selected{% endif %}>kids</option>
+            <option value="adult" {% if course.audience=='adult' %}selected{% endif %}>adult</option>
+            <option value="gov" {% if course.audience=='gov' %}selected{% endif %}>gov</option>
+        </select>
+    </div>
+    <button class="btn btn-primary">Сохранить</button>
+    <a class="btn btn-outline-secondary ms-2" href="/admin/courses">Назад</a>
+</form>
+{% endblock %}

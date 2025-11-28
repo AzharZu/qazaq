@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+    <div>
+        <div class="text-muted small mb-1">
+            {{ lesson.module.course.name if lesson.module and lesson.module.course else "Курс" }} · Модуль "{{ lesson.module.name if lesson.module else '' }}"
+        </div>
+        <h3 class="mb-1">Блок #{{ block.id }} — {{ block.block_type }}</h3>
+        <p class="text-muted mb-0">Урок: "{{ lesson.title }}". Переключайте тип и обновляйте содержимое в одном месте.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-outline-dark" href="/lesson/{{ lesson.id }}">👁 Смотреть урок</a>
+        <a class="btn btn-outline-secondary" href="/admin/lesson/{{ lesson.id }}">⬅️ Назад к уроку</a>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+        <h6 class="text-muted text-uppercase small mb-3">1. Тип блока</h6>
+        <form method="get" action="/admin/block/{{ block.id }}/edit" class="row g-3 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label">Тип блока</label>
+                <select name="block_type" class="form-select" required>
+                    {% for t in block_types %}
+                    <option value="{{ t }}" {% if selected_type == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+                <small class="text-muted">Можно переключиться на другой формат, если блок нужно изменить.</small>
+            </div>
+            <div class="col-md-3 text-end">
+                <button class="btn btn-dark mt-md-4" type="submit">Показать форму</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if selected_type %}
+{% set form_partial = 'admin/components/forms_' ~ selected_type ~ '.html' %}
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <h6 class="text-muted text-uppercase small mb-3">2. Контент блока</h6>
+        <form method="post">
+            <input type="hidden" name="block_type" value="{{ selected_type }}">
+            <div class="row g-3 mb-3">
+                <div class="col-md-3">
+                    <label class="form-label">Порядок блока</label>
+                    <input type="number" name="order" class="form-control" value="{{ block.order }}" min="1">
+                    <small class="text-muted">Контролируйте положение блока в ленте.</small>
+                </div>
+            </div>
+            {% include form_partial %}
+            <div class="mt-3 d-flex gap-2 flex-wrap">
+                <button class="btn btn-dark">Сохранить</button>
+                <a class="btn btn-outline-secondary" href="/admin/lesson/{{ lesson.id }}">Отмена</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

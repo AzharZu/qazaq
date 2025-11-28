@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-section">
+    <div class="hero-block">
+        <div class="display-title">Изучи казахский под свою цель</div>
+        <p class="lead-text">Минималистичный интерфейс, четкая структура уроков и понятная навигация. Выберите курс под свой уровень или пройдите тест.</p>
+        <div class="d-flex justify-content-center flex-wrap gap-3">
+            <a href="/placement-test" class="cta-primary text-decoration-none">Пройти тест уровня</a>
+            <a href="/signup" class="cta-secondary text-decoration-none">Начать бесплатно</a>
+        </div>
+    </div>
+</section>
+
+{% if recommended %}
+<section class="page-section">
+    <div class="card-soft d-flex flex-column flex-lg-row justify-content-between align-items-start gap-3">
+        <div>
+            <div class="eyebrow text-uppercase text-muted">Рекомендовано</div>
+            <h3 class="fw-bold mb-2">{{ recommended.name }}</h3>
+            <p class="mb-0 text-muted">{{ recommended.description }}</p>
+        </div>
+        <a class="cta-primary text-decoration-none" href="/course/{{ recommended.slug }}">Перейти к курсу</a>
+    </div>
+</section>
+{% endif %}
+
+<section class="page-section">
+    <div class="text-center mb-4">
+        <h2 class="display-title">Три курса — один язык</h2>
+        <p class="lead-text mb-0">Выберите формат обучения: для детей, взрослых или делового общения.</p>
+    </div>
+    <div class="row g-4">
+        {% for course in courses[:3] %}
+        <div class="col-md-4">
+            <div class="card-plate h-100 d-flex flex-column justify-content-between">
+                <div>
+                    <div class="course-card-title">{{ course.name }}</div>
+                    <p class="course-card-text">{{ course.description }}</p>
+                </div>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <span class="pill text-uppercase">{{ course.audience }}</span>
+                    <a href="/course/{{ course.slug }}" class="btn btn-dark w-100 mt-3">Начать курс</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<h3 class="mb-3">{% if quiz %}Редактировать Quiz{% else %}Добавить Quiz{% endif %}</h3>
+<form method="post" class="card card-body shadow-sm">
+    <div class="mb-3">
+        <label class="form-label">Вопрос</label>
+        <textarea name="question" class="form-control" rows="2" required>{{ quiz.question if quiz else '' }}</textarea>
+    </div>
+    <div class="row g-3">
+        <div class="col-md-4">
+            <label class="form-label">Вариант 1</label>
+            <input type="text" name="option_1" class="form-control" value="{% if quiz %}{{ quiz.options[0] }}{% endif %}" required>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Вариант 2</label>
+            <input type="text" name="option_2" class="form-control" value="{% if quiz %}{{ quiz.options[1] }}{% endif %}" required>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Вариант 3</label>
+            <input type="text" name="option_3" class="form-control" value="{% if quiz %}{{ quiz.options[2] }}{% endif %}" required>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Правильный индекс (0-2)</label>
+            <input type="number" name="correct_option" class="form-control" value="{% if quiz %}{{ quiz.correct_option }}{% else %}0{% endif %}" required>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Order</label>
+            <input type="number" name="order" class="form-control" value="{% if quiz %}{{ quiz.order }}{% else %}1{% endif %}" required>
+        </div>
+    </div>
+    <div class="mb-3 mt-3">
+        <label class="form-label">Explanation</label>
+        <textarea name="explanation" class="form-control" rows="2">{% if quiz %}{{ quiz.explanation }}{% endif %}</textarea>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Age group</label>
+        <input type="text" name="age_group" class="form-control" value="{% if quiz %}{{ quiz.age_group }}{% endif %}">
+    </div>
+    <button class="btn btn-primary">Сохранить</button>
+    <a class="btn btn-outline-secondary ms-2" href="/admin/lesson/{{ lesson_id }}/quizzes">Назад</a>
+</form>
+{% endblock %}

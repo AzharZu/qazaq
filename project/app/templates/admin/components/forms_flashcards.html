@@ -1,0 +1,22 @@
+<h6 class="text-uppercase text-muted">Flashcards</h6>
+<p class="text-muted small">Отметьте карточки, которые войдут в блок. Сразу видно лицевую и обратную стороны.</p>
+{% set selected_cards = block.content.flashcard_ids if block and block.content.flashcard_ids is defined else [] %}
+{% if lesson.flashcards %}
+<div class="row g-2">
+    {% for card in lesson.flashcards %}
+    <div class="col-md-6">
+        <label class="list-group-item d-flex align-items-start gap-3 shadow-sm border-0 rounded">
+            <input class="form-check-input mt-1" type="checkbox" name="selected_flashcard_ids" value="{{ card.id }}" {% if card.id in selected_cards %}checked{% endif %}>
+            <div class="flex-grow-1">
+                <div class="fw-semibold">{{ card.front }}</div>
+                <div class="text-muted small">→ {{ card.back }}</div>
+                {% if card.audio_url %}<div class="text-muted small">🔊 {{ card.audio_url }}</div>{% endif %}
+            </div>
+            <span class="badge bg-light text-dark">#{{ card.order }}</span>
+        </label>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-muted">Нет карточек для этого урока. Добавьте их на странице Flashcards.</p>
+{% endif %}

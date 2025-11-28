@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+    <div>
+        <div class="text-muted small mb-1">{{ module.course.name if module.course else "Курс" }} · Модуль "{{ module.name }}"</div>
+        <h3 class="mb-1">Уроки модуля</h3>
+        <p class="text-muted mb-0">Открывайте урок в режиме конструктора, просматривайте содержимое блоков и редактируйте.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="/admin/course/{{ module.course_id }}/modules" class="btn btn-outline-secondary">⬅️ Назад к модулям</a>
+    </div>
+    <div class="d-flex gap-2">
+        <span class="badge text-bg-dark">Всего уроков: {{ module.lessons|length }}</span>
+    </div>
+</div>
+
+<div class="row gy-3">
+    {% for lesson in module.lessons %}
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-muted small mb-1">Урок №{{ lesson.order }}</div>
+                        <h5 class="mb-2">{{ lesson.title }}</h5>
+                        <p class="text-muted small mb-0">{{ lesson.description or "Описание пока не заполнено" | truncate(140) }}</p>
+                    </div>
+                    <span class="badge bg-light text-dark border">ID {{ lesson.id }}</span>
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex flex-wrap gap-2">
+                <a class="btn btn-sm btn-dark" href="/admin/lesson/{{ lesson.id }}">Открыть конструктор</a>
+                <a class="btn btn-sm btn-outline-primary" href="/admin/lesson/{{ lesson.id }}/edit">✏️ Редактировать</a>
+                <a class="btn btn-sm btn-outline-dark" href="/lesson/{{ lesson.id }}">👁 Смотреть урок</a>
+                <a class="btn btn-sm btn-outline-secondary" href="/admin/lesson/{{ lesson.id }}/flashcards">Flashcards</a>
+                <a class="btn btn-sm btn-outline-secondary" href="/admin/lesson/{{ lesson.id }}/quizzes">Quizzes</a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+<a href="/admin/course/{{ module.course_id }}/modules" class="btn btn-outline-secondary mt-3">⬅️ Назад к модулям</a>
+{% endblock %}

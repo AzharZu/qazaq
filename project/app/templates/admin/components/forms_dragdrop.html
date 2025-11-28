@@ -1,0 +1,15 @@
+<div class="mb-3">
+    <label class="form-label">Задание</label>
+    <input type="text" name="task" class="form-control" value="{% if block and block.content.task is defined %}{{ block.content.task }}{% endif %}" placeholder="Соберите предложение из частей">
+    <small class="text-muted">Короткое описание, что нужно сделать.</small>
+</div>
+<div class="mb-3">
+    <label class="form-label">Элементы (каждый с новой строки)</label>
+    <textarea name="parts" class="form-control" rows="3" placeholder="мен&#10;мектепке&#10;барамын">{% if block and block.content.parts is defined %}{{ block.content.parts | join('\n') }}{% endif %}</textarea>
+    <small class="text-muted">Части, которые ученик будет перетаскивать.</small>
+</div>
+<div class="mb-3">
+    <label class="form-label">Правильный порядок</label>
+    <textarea name="correct_order" class="form-control" rows="3" placeholder="мен&#10;мектепке&#10;барамын">{% if block and block.content.correct_order is defined %}{{ block.content.correct_order | join('\n') }}{% endif %}</textarea>
+    <small class="text-muted">Укажите эталонный порядок для проверки.</small>
+</div>

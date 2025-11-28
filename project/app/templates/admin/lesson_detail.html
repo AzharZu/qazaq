@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body p-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+            <div class="pe-3">
+                <div class="text-muted small mb-1">
+                    {{ lesson.module.course.name if lesson.module and lesson.module.course else "Курс" }}
+                    · Модуль "{{ lesson.module.name if lesson.module else '' }}" · Урок №{{ lesson.order }}
+                </div>
+                <h1 class="h3 fw-bold mb-2">{{ lesson.title }}</h1>
+                <p class="text-muted mb-3">{{ lesson.description or "Описание пока пустое — добавьте вводный текст для учителя." }}</p>
+                <div class="d-flex flex-wrap gap-2">
+                    <span class="badge text-bg-dark">Блоков: {{ lesson.blocks|length }}</span>
+                    {% if lesson.estimated_time %}<span class="badge text-bg-primary">~{{ lesson.estimated_time }} мин</span>{% endif %}
+                    {% if lesson.difficulty %}<span class="badge text-bg-secondary">Сложность: {{ lesson.difficulty }}</span>{% endif %}
+                    {% if lesson.age_group %}<span class="badge text-bg-success">Группа: {{ lesson.age_group }}</span>{% endif %}
+                    {% if lesson.lesson_type %}<span class="badge text-bg-info">Тип: {{ lesson.lesson_type }}</span>{% endif %}
+                </div>
+            </div>
+            <div class="d-flex flex-column align-items-end gap-2">
+                <a class="btn btn-dark" href="/admin/lesson/{{ lesson.id }}/blocks/add">➕ Добавить блок</a>
+                <a class="btn btn-outline-primary w-100" href="/admin/lesson/{{ lesson.id }}/edit">✏️ Редактировать урок</a>
+                <a class="btn btn-outline-dark w-100" href="/lesson/{{ lesson.id }}">👁 Посмотреть урок</a>
+                <a class="btn btn-outline-secondary w-100" href="/admin/module/{{ lesson.module_id }}/lessons">⬅️ Назад к модулю</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h5 class="mb-1">Конструктор блока урока</h5>
+        <p class="text-muted mb-0">Видно всё содержимое и порядок блоков. Перетаскивайте стрелками и редактируйте прямо отсюда.</p>
+    </div>
+    <a class="btn btn-dark" href="/admin/lesson/{{ lesson.id }}/blocks/add">➕ Добавить блок</a>
+</div>
+
+{% set block_meta = {
+    "theory": {"label": "THEORY", "color": "primary", "icon": "🟦"},
+    "example": {"label": "EXAMPLES", "color": "success", "icon": "🟩"},
+    "flashcards": {"label": "FLASHCARDS", "color": "warning", "icon": "🟧"},
+    "quiz": {"label": "QUIZ", "color": "info", "icon": "🟪"},
+    "pronunciation": {"label": "PRONUNCIATION", "color": "secondary", "icon": "🔵"},
+    "dragdrop": {"label": "DRAG & DROP", "color": "secondary", "icon": "🧩"},
+    "story": {"label": "STORY", "color": "dark", "icon": "📖"},
+    "mascot_tip": {"label": "TIP", "color": "light", "icon": "🦊"},
+    "default": {"label": "BLOCK", "color": "dark", "icon": "📦"}
+} %}
+
+<div class="d-flex flex-column gap-3">
+    {% for block in lesson.blocks %}
+        {% include "admin/components/block_card.html" %}
+    {% else %}
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h5 class="mb-2">Урок пока пуст</h5>
+                <p class="text-muted mb-3">Добавьте первый блок: теория, примеры, карточки или квизы — всё будет видно на одной странице.</p>
+                <a class="btn btn-dark" href="/admin/lesson/{{ lesson.id }}/blocks/add">➕ Добавить блок</a>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

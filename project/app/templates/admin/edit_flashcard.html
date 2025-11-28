@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<h3 class="mb-3">{% if flashcard %}Редактировать flashcard{% else %}Добавить flashcard{% endif %}</h3>
+<form method="post" class="card card-body shadow-sm">
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label">Front</label>
+            <input type="text" name="front" class="form-control" value="{{ flashcard.front if flashcard else '' }}" required>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Back</label>
+            <input type="text" name="back" class="form-control" value="{{ flashcard.back if flashcard else '' }}" required>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Image URL</label>
+            <input type="text" name="image_url" class="form-control" value="{{ flashcard.image_url if flashcard else '' }}">
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Audio URL</label>
+            <input type="text" name="audio_url" class="form-control" value="{{ flashcard.audio_url if flashcard else '' }}">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Age group</label>
+            <input type="text" name="age_group" class="form-control" value="{{ flashcard.age_group if flashcard else '' }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Order</label>
+            <input type="number" name="order" class="form-control" value="{{ flashcard.order if flashcard else 1 }}">
+        </div>
+    </div>
+    <div class="mt-3">
+        <button class="btn btn-primary">Сохранить</button>
+        <a class="btn btn-outline-secondary ms-2" href="/admin/lesson/{{ lesson_id }}/flashcards">Назад</a>
+    </div>
+</form>
+{% endblock %}

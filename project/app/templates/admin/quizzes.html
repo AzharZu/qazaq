@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Quiz вопросы урока "{{ lesson.title }}"</h3>
+    <a class="btn btn-primary" href="/admin/quizzes/add?lesson_id={{ lesson.id }}">Добавить вопрос</a>
+</div>
+<table class="table table-striped">
+    <thead><tr><th>Order</th><th>Вопрос</th><th>Правильный</th><th></th></tr></thead>
+    <tbody>
+    {% for quiz in lesson.quizzes %}
+    <tr>
+        <td>{{ quiz.order }}</td>
+        <td>{{ quiz.question }}</td>
+        <td>{{ quiz.options[quiz.correct_option] if quiz.options and quiz.correct_option < quiz.options|length else '' }}</td>
+        <td class="text-end">
+            <a class="btn btn-sm btn-outline-primary" href="/admin/quiz/{{ quiz.id }}/edit">Редактировать</a>
+            <a class="btn btn-sm btn-outline-danger" href="/admin/quiz/{{ quiz.id }}/delete">Удалить</a>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+<a href="/admin/module/{{ lesson.module_id }}/lessons" class="btn btn-outline-secondary">Назад</a>
+{% endblock %}

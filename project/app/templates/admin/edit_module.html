@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h3 class="mb-3">Редактировать модуль #{{ module.id }}</h3>
+<form method="post" class="card card-body shadow-sm">
+    <div class="mb-3">
+        <label class="form-label">Название</label>
+        <input type="text" name="name" class="form-control" value="{{ module.name }}" required>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Описание</label>
+        <textarea name="description" class="form-control" rows="3">{{ module.description }}</textarea>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Порядок</label>
+        <input type="number" name="order" class="form-control" value="{{ module.order }}" required>
+    </div>
+    <button class="btn btn-primary">Сохранить</button>
+    <a class="btn btn-outline-secondary ms-2" href="/admin/course/{{ module.course_id }}/modules">Назад</a>
+</form>
+{% endblock %}

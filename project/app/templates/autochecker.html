@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-section">
+    <div class="autochecker-shell card-plate shadow-soft">
+        <div class="d-flex flex-column gap-2">
+            <div>
+                <div class="eyebrow text-uppercase text-muted">AutoChecker</div>
+                <h1 class="display-title fs-2 mb-1">ИИ-помощник для вашего текста</h1>
+                <p class="lead-text mb-0">ИИ-помощник, который находит ошибки в тексте и даёт рекомендации, не переписывая вас.</p>
+            </div>
+            {% if error %}<div class="alert alert-danger mb-0">{{ error }}</div>{% endif %}
+            <form method="post" class="vstack gap-3 position-relative">
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Уровень</label>
+                        <select name="level" class="form-select">
+                            {% set lvl = (level or 'A2') %}
+                            {% for opt in ['A1','A2','B1','B2'] %}
+                                <option value="{{ opt }}" {% if opt == lvl %}selected{% endif %}>{{ opt }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="small text-muted mb-0">Выберите уровень, чтобы ИИ был мягче или строже.</p>
+                    </div>
+                </div>
+                <div class="position-relative">
+                    <label class="form-label fw-semibold">Текст для проверки</label>
+                    <textarea id="autochecker-text" name="user_text" placeholder="Введите текст на казахском или русском для проверки…" class="form-control"
+                              style="min-height: 240px; background: #f7f7f7; border: 1px solid #d0d0d0; border-radius: 12px; padding: 16px;">{{ input_text }}</textarea>
+                    <button type="button" class="voice-btn" id="mic-btn">🎤 Записать голос</button>
+                </div>
+                <div class="d-flex justify-content-end">
+                    <button type="submit" class="cta-primary">Проверить через ИИ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+
+{% if result %}
+<section class="page-section" aria-live="polite">
+    <div class="autochecker-shell card-plate shadow-soft">
+        <div class="row g-3 align-items-stretch mb-3">
+            <div class="col-lg-7">
+                <div class="score-card h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-semibold">Грамматика</span>
+                        <span class="fw-bold">{{ result.grammar_score }}/10</span>
+                    </div>
+                    <div class="score-bar mb-3">
+                        <div class="score-bar-fill" style="width: {{ (result.grammar_score or 0) * 10 }}%"></div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-semibold">Лексика</span>
+                        <span class="fw-bold">{{ result.vocabulary_score }}/10</span>
+                    </div>
+                    <div class="score-bar">
+                        <div class="score-bar-fill" style="width: {{ (result.vocabulary_score or 0) * 10 }}%"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <div class="mentor-card h-100">
+                    <div class="fw-semibold mb-2">Qazaq Mentor говорит:</div>
+                    <p class="mb-0">{{ mentor_tip }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="ai-card mb-3">
+            <div class="fw-semibold mb-2">Ваш текст с подсветкой ошибок</div>
+            <div class="annotated-box" aria-live="polite">
+                {{ result.annotated_html | safe }}
+            </div>
+        </div>
+
+        <div class="ai-card mb-3">
+            <div class="fw-semibold mb-2">Найденные ошибки</div>
+            {% if result.errors %}
+                <div class="vstack gap-2">
+                    {% for item in result.errors %}
+                        <div class="error-card">
+                            <div class="small text-muted mb-1">Фрагмент:</div>
+                            <div class="fw-semibold mb-1">{{ item.fragment }}</div>
+                            <div class="small text-muted mb-1">Почему это ошибка:</div>
+                            <div class="mb-1">{{ item.explanation }}</div>
+                            <div class="small text-muted mb-1">Как лучше:</div>
+                            <div class="mb-0">{{ item.suggestion }}</div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="mb-0 text-muted">Ошибок не найдено.</p>
+            {% endif %}
+        </div>
+
+        <div class="ai-card mb-3">
+            <div class="fw-semibold mb-2">Рекомендации</div>
+            {% if result.recommendations %}
+                <ul class="mb-0 ps-3">
+                    {% for rec in result.recommendations %}
+                        <li>{{ rec }}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="mb-0 text-muted">Рекомендаций нет.</p>
+            {% endif %}
+        </div>
+
+        <div class="ai-card">
+            <div class="fw-semibold mb-2">Предложенный вариант текста</div>
+            <div class="annotated-box" style="background:#f5f5f5;">{{ result.improved_text or "—" }}</div>
+            <div class="text-muted small mt-2">Это лишь вариант. Можете не соглашаться и переписать по-своему.</div>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<script>
+(function() {
+    const textarea = document.getElementById("autochecker-text");
+    const micBtn = document.getElementById("mic-btn");
+    if (!textarea || !micBtn) return;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        micBtn.addEventListener("click", () => alert("Распознавание речи не поддерживается в этом браузере."));
+        return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "ru-RU";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    let listening = false;
+
+    const setState = (active) => {
+        listening = active;
+        micBtn.classList.toggle("listening", active);
+        micBtn.textContent = active ? "Идёт запись…" : "🎤 Записать голос";
+    };
+
+    recognition.onresult = (event) => {
+        if (!event.results || !event.results[0] || !event.results[0][0]) return;
+        const spoken = event.results[0][0].transcript;
+        textarea.value = (textarea.value ? textarea.value + " " : "") + spoken;
+    };
+    recognition.onerror = () => setState(false);
+    recognition.onend = () => setState(false);
+
+    micBtn.addEventListener("click", () => {
+        if (listening) {
+            recognition.stop();
+            return;
+        }
+        try {
+            setState(true);
+            recognition.start();
+        } catch (err) {
+            console.error(err);
+            setState(false);
+            alert("Не удалось запустить распознавание речи.");
+        }
+    });
+})();
+</script>
+{% endblock %}

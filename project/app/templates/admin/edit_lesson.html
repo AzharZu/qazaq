@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+    <div>
+        <div class="text-muted small mb-1">
+            {{ lesson.module.course.name if lesson.module and lesson.module.course else "Курс" }} · Модуль "{{ lesson.module.name if lesson.module else '' }}"
+        </div>
+        <h3 class="mb-1">Настройки урока</h3>
+        <p class="text-muted mb-0">Обновите заголовок, описание и метаданные. Все блоки — на странице конструктора.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-outline-dark" href="/lesson/{{ lesson.id }}">👁 Смотреть урок</a>
+        <a class="btn btn-outline-secondary" href="/admin/lesson/{{ lesson.id }}">⬅️ Назад к конструктору</a>
+    </div>
+</div>
+
+<form method="post" class="card shadow-sm border-0">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-8">
+                <label class="form-label">Заголовок урока</label>
+                <input type="text" name="title" class="form-control" value="{{ lesson.title }}" required placeholder="Например: Барыс септік: как говорить «куда?»">
+                <small class="text-muted">Название видно учителю и ученикам.</small>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Порядок в модуле</label>
+                <input type="number" name="order" class="form-control" value="{{ lesson.order }}" required min="1">
+                <small class="text-muted">Число определяет позицию урока.</small>
+            </div>
+            <div class="col-12">
+                <label class="form-label">Описание урока</label>
+                <textarea name="description" class="form-control" rows="3" placeholder="Коротко о том, что изучит ученик">{{ lesson.description or '' }}</textarea>
+                <small class="text-muted">Помогает понять фокус урока: цель, темы, результат.</small>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Тип урока</label>
+                <input type="text" name="lesson_type" class="form-control" value="{{ lesson.lesson_type or '' }}" placeholder="theory / practice / mix">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Целевая группа (age group)</label>
+                <input type="text" name="age_group" class="form-control" value="{{ lesson.age_group or '' }}" placeholder="kids / adult / gov">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Сложность</label>
+                <input type="text" name="difficulty" class="form-control" value="{{ lesson.difficulty or '' }}" placeholder="A0 / A1 / A2 / B1 ...">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Оценка времени (мин)</label>
+                <input type="number" name="estimated_time" class="form-control" value="{{ lesson.estimated_time or '' }}" placeholder="15">
+            </div>
+        </div>
+    </div>
+    <div class="card-footer bg-white d-flex flex-wrap gap-2">
+        <button class="btn btn-dark">Сохранить</button>
+        <a class="btn btn-outline-secondary" href="/admin/lesson/{{ lesson.id }}">Назад без сохранения</a>
+    </div>
+</form>
+{% endblock %}

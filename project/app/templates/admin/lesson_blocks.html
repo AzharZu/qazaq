@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h3 class="mb-1">Блоки урока "{{ lesson.title }}"</h3>
+        <p class="text-muted mb-0">Всего: {{ lesson.blocks|length }}</p>
+    </div>
+    <div>
+        <a class="btn btn-primary" href="/admin/lesson/{{ lesson.id }}/blocks/add">Добавить блок</a>
+        <a href="/admin/module/{{ lesson.module_id }}/lessons" class="btn btn-outline-secondary ms-2">Назад</a>
+    </div>
+</div>
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Тип</th>
+                    <th>Порядок</th>
+                    <th class="text-end">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for block in lesson.blocks %}
+                <tr>
+                    <td>{{ block.id }}</td>
+                    <td><span class="badge bg-light text-dark border">{{ block.block_type }}</span></td>
+                    <td class="fw-semibold">{{ block.order }}</td>
+                    <td class="text-end">
+                        <form method="post" action="/admin/block/{{ block.id }}/move-up" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary" title="Вверх">↑</button>
+                        </form>
+                        <form method="post" action="/admin/block/{{ block.id }}/move-down" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary" title="Вниз">↓</button>
+                        </form>
+                        <a class="btn btn-sm btn-outline-primary" href="/admin/block/{{ block.id }}/edit">Редактировать</a>
+                        <form method="post" action="/admin/block/{{ block.id }}/delete" class="d-inline" onsubmit="return confirm('Удалить блок?');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
