@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block content %}
+{% extends "admin/admin_base.html" %}
+{% block admin_content %}
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-body p-4">
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
@@ -21,7 +21,7 @@
             <div class="d-flex flex-column align-items-end gap-2">
                 <a class="btn btn-dark" href="/admin/lesson/{{ lesson.id }}/blocks/add">➕ Добавить блок</a>
                 <a class="btn btn-outline-primary w-100" href="/admin/lesson/{{ lesson.id }}/edit">✏️ Редактировать урок</a>
-                <a class="btn btn-outline-dark w-100" href="/lesson/{{ lesson.id }}">👁 Посмотреть урок</a>
+                <a class="btn btn-outline-dark w-100" href="/lesson/{{ lesson.id }}">Посмотреть урок</a>
                 <a class="btn btn-outline-secondary w-100" href="/admin/module/{{ lesson.module_id }}/lessons">⬅️ Назад к модулю</a>
             </div>
         </div>
@@ -37,15 +37,15 @@
 </div>
 
 {% set block_meta = {
-    "theory": {"label": "THEORY", "color": "primary", "icon": "🟦"},
-    "example": {"label": "EXAMPLES", "color": "success", "icon": "🟩"},
-    "flashcards": {"label": "FLASHCARDS", "color": "warning", "icon": "🟧"},
-    "quiz": {"label": "QUIZ", "color": "info", "icon": "🟪"},
-    "pronunciation": {"label": "PRONUNCIATION", "color": "secondary", "icon": "🔵"},
-    "dragdrop": {"label": "DRAG & DROP", "color": "secondary", "icon": "🧩"},
-    "story": {"label": "STORY", "color": "dark", "icon": "📖"},
-    "mascot_tip": {"label": "TIP", "color": "light", "icon": "🦊"},
-    "default": {"label": "BLOCK", "color": "dark", "icon": "📦"}
+    "theory": {"label": "THEORY", "color": "primary", "icon": ""},
+    "example": {"label": "EXAMPLES", "color": "success", "icon": ""},
+    "flashcards": {"label": "FLASHCARDS", "color": "warning", "icon": ""},
+    "quiz": {"label": "QUIZ", "color": "info", "icon": ""},
+    "pronunciation": {"label": "PRONUNCIATION", "color": "secondary", "icon": ""},
+    "dragdrop": {"label": "DRAG & DROP", "color": "secondary", "icon": ""},
+    "story": {"label": "STORY", "color": "dark", "icon": ""},
+    "mascot_tip": {"label": "TIP", "color": "light", "icon": ""},
+    "default": {"label": "BLOCK", "color": "dark", "icon": ""}
 } %}
 
 <div class="d-flex flex-column gap-3">

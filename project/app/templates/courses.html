@@ -1,20 +1,40 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="page-section">
-    <div class="d-flex justify-content-start mb-3">
-        <a href="/" class="btn-ghost text-decoration-none text-dark">Назад</a>
+    <div class="lesson-band mb-3 d-flex justify-content-between align-items-center gap-3 flex-wrap">
+        <div class="d-flex align-items-center gap-2">
+            <a href="/" class="btn-ghost text-decoration-none">← Домой</a>
+            <span class="block-label">Каталог курсов</span>
+        </div>
     </div>
-    <div class="text-center mb-4">
-        <h1 class="display-title mb-2">Выберите свой курс!</h1>
-        <p class="lead-text mb-0">Три направления для разных аудиторий. Все уроки с примерами и заданиями.</p>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div>
+            <h1 class="display-title mb-1">Каталог курсов</h1>
+            <p class="lead-text mb-0">KazKids, KazPro и Qyzmet Qazaq — выберите нужный и начинайте.</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="/placement-test" class="btn btn-outline-dark">Пройти тест</a>
+            <a href="/signup" class="btn btn-primary">Начать бесплатно</a>
+        </div>
     </div>
+
     <div class="row g-4">
         {% for course in courses %}
         <div class="col-md-4">
-            <div class="card-plate h-100 d-flex flex-column">
-                <div class="course-card-title">{{ course.name }}</div>
-                <p class="course-card-text flex-grow-1">{{ course.description }}</p>
-                <a class="btn btn-dark mt-3 w-100" href="/course/{{ course.slug }}">Начать курс</a>
+            <div class="course-card h-100 d-flex flex-column">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="course-chip">{{ course.audience }}</span>
+                    <span class="status-badge info">Курс</span>
+                </div>
+                <h4 class="fw-bold mb-2">{{ course.name }}</h4>
+                <p class="text-muted flex-grow-1">{{ course.description }}</p>
+                <div class="progress progress-slim mb-2"><div class="progress-bar" style="width: 18%;"></div></div>
+                <div class="small text-muted mb-3">Пример прогресса · 18%</div>
+                <div class="d-grid gap-2">
+                    <a class="btn btn-dark w-100" href="/course/{{ course.slug }}">Перейти</a>
+                    <a class="btn btn-outline-dark w-100" href="/placement-test">Определить уровень</a>
+                </div>
             </div>
         </div>
         {% endfor %}

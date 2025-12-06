@@ -10,7 +10,7 @@
             <div class="flex-grow-1">
                 <div class="fw-semibold">{{ card.front }}</div>
                 <div class="text-muted small">→ {{ card.back }}</div>
-                {% if card.audio_url %}<div class="text-muted small">🔊 {{ card.audio_url }}</div>{% endif %}
+                {% if card.audio_url %}<div class="text-muted small">{{ card.audio_url }}</div>{% endif %}
             </div>
             <span class="badge bg-light text-dark">#{{ card.order }}</span>
         </label>

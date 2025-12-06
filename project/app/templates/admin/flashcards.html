@@ -1,25 +1,34 @@
-{% extends "base.html" %}
-{% block content %}
+{% extends "admin/admin_base.html" %}
+{% block admin_content %}
+<div class="admin-breadcrumbs">Flashcards / {{ lesson.title }}</div>
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3>Flashcards урока "{{ lesson.title }}"</h3>
-    <a class="btn btn-primary" href="/admin/flashcards/add?lesson_id={{ lesson.id }}">Добавить карточку</a>
-</div>
-<table class="table table-striped">
-    <thead><tr><th>Order</th><th>Front</th><th>Back</th><th>Age</th><th></th></tr></thead>
-    <tbody>
+    <div>
+        <h3 class="mb-1">Flashcards урока "{{ lesson.title }}"</h3>
+        <p class="text-muted mb-0">Лицевая сторона — слово, оборот — перевод и значение. Клик для предпросмотра.</p>
+    </div>
+    <a class="admin-btn primary" href="/admin/flashcards/add?lesson_id={{ lesson.id }}">➕ Добавить карточку</a>
+    </div>
+<div class="admin-grid">
     {% for card in lesson.flashcards %}
-    <tr>
-        <td>{{ card.order }}</td>
-        <td>{{ card.front }}</td>
-        <td>{{ card.back }}</td>
-        <td>{{ card.age_group }}</td>
-        <td class="text-end">
-            <a class="btn btn-sm btn-outline-primary" href="/admin/flashcard/{{ card.id }}/edit">Редактировать</a>
-            <a class="btn btn-sm btn-outline-danger" href="/admin/flashcard/{{ card.id }}/delete">Удалить</a>
-        </td>
-    </tr>
+    <div class="admin-card">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="admin-card__meta">Порядок {{ card.order }}</div>
+                <div class="admin-card__title">{{ card.front }}</div>
+                <div class="admin-card__meta">{{ card.back }}</div>
+            </div>
+            <span class="badge-pill">ID {{ card.id }}</span>
+        </div>
+        <div class="admin-actions">
+            <a class="admin-btn primary" href="/admin/flashcard/{{ card.id }}/edit">Редактировать</a>
+            <a class="admin-btn" href="/admin/flashcard/{{ card.id }}/delete">Удалить</a>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-muted">Карточек нет. Добавьте первую.</div>
     {% endfor %}
-    </tbody>
-</table>
-<a href="/admin/module/{{ lesson.module_id }}/lessons" class="btn btn-outline-secondary">Назад</a>
+</div>
+<div class="admin-actions mt-3">
+    <a href="/admin/module/{{ lesson.module_id }}/lessons" class="admin-btn">⬅️ Назад</a>
+</div>
 {% endblock %}

@@ -1,0 +1,58 @@
+{% extends "admin/admin_base.html" %}
+{% block admin_content %}
+<div class="admin-breadcrumbs">Audio / Video</div>
+<h3 class="mb-2">Загрузка медиа</h3>
+<p class="text-muted mb-3">Загрузите аудио или видео. Файлы сохраняются в /static/audio и /static/video.</p>
+
+<form method="post" enctype="multipart/form-data" class="admin-card">
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label">Тип медиа</label>
+            <select name="media_type" class="form-select">
+                <option value="audio">Аудио</option>
+                <option value="video">Видео</option>
+            </select>
+        </div>
+        <div class="col-md-9">
+            <label class="form-label">Файл</label>
+            <input type="file" name="file" class="form-control" accept="audio/*,video/mp4,video/webm,video/quicktime" required>
+        </div>
+    </div>
+    <div class="admin-actions mt-3">
+        <button class="admin-btn primary" type="submit">Загрузить</button>
+    </div>
+</form>
+
+{% if uploaded_url %}
+<div class="admin-card mt-3">
+    <div class="admin-card__title">Готово</div>
+    <p class="text-muted mb-2">URL: <code>{{ uploaded_url }}</code></p>
+    {% if media_type == "audio" %}
+    <div id="waveform"></div>
+    <button class="admin-btn primary mt-2" id="play-audio">▶️ Прослушать</button>
+    <audio id="audio-fallback" controls src="{{ uploaded_url }}" class="w-100 mt-2"></audio>
+    {% else %}
+    <video id="video-preview" class="w-100" controls src="{{ uploaded_url }}"></video>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{% if uploaded_url and media_type == "audio" %}
+<script src="https://unpkg.com/wavesurfer.js@7.6.0/dist/wavesurfer.min.js"></script>
+<script>
+    const wavesurfer = WaveSurfer.create({
+        container: '#waveform',
+        waveColor: '#999',
+        progressColor: '#111827',
+        height: 64,
+        url: "{{ uploaded_url }}",
+    });
+    document.getElementById("play-audio").addEventListener("click", () => {
+        wavesurfer.playPause();
+    });
+</script>
+{% endif %}
+{% endblock %}

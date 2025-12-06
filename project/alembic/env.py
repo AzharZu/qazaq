@@ -9,7 +9,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
 
-from .config import get_settings  # noqa: E402
+from app.config import get_settings  # noqa: E402
 from app.database import Base  # noqa: E402
 from app import models  # noqa: F401,E402
 

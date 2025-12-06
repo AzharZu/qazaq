@@ -1,6 +1,10 @@
-from fastapi import APIRouter, Depends, Form, Request, status
+from fastapi import APIRouter, Body, Depends, Form, Request, status
+from fastapi.responses import JSONResponse
+from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from .. import models
+from ..database import get_db
 from ..dependencies import get_current_user
 from ..services import analyze_text, AutoCheckerError
 from ..templating import render_template
@@ -80,3 +84,25 @@ async def autochecker_submit(
         },
         status_code=status_code,
     )
+
+
+@router.post("/autochecker/suggest-training")
+async def autochecker_suggest_training(
+    payload: dict = Body(...),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    raw_word = payload.get("word") if isinstance(payload, dict) else None
+    word = (raw_word or "").strip()
+    if not word:
+        return JSONResponse({"exists_in_vocab": False, "training_url": ""})
+
+    entry = (
+        db.query(models.VocabularyWord)
+        .filter(models.VocabularyWord.user_id == user.id, func.lower(models.VocabularyWord.word) == word.lower())
+        .first()
+    )
+    if entry:
+        return JSONResponse({"exists_in_vocab": True, "training_url": f"/vocabulary/game/repeat?word_id={entry.id}"})
+
+    return JSONResponse({"exists_in_vocab": False, "training_url": ""})

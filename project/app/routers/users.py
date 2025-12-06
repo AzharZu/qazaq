@@ -6,7 +6,12 @@ from .. import models
 from ..database import get_db
 from ..schemas import UserOut
 from ..dependencies import get_current_user
-from ..services.dictionary import get_user_dictionary_grouped
+from ..services.dictionary import (
+    bump_word_of_week_view,
+    ensure_word_of_week,
+    get_stats,
+    get_user_dictionary_grouped,
+)
 from ..services.progress import get_progress_for_user
 from ..templating import render_template
 
@@ -35,6 +40,10 @@ async def profile_page(request: Request, db: Session = Depends(get_db), user: mo
         else None
     )
     grouped_dict = get_user_dictionary_grouped(user.id, db)
+    vocab_stats = get_stats(user.id, db)
+    word_of_week = ensure_word_of_week(db)
+    if word_of_week:
+        bump_word_of_week_view(word_of_week, db)
     return render_template(
         request,
         "profile.html",
@@ -43,8 +52,11 @@ async def profile_page(request: Request, db: Session = Depends(get_db), user: mo
             "course": course,
             "progress": progress,
             "certificates": progress.get("certificates", []),
-            "modules_list": [m.name if hasattr(m, 'name') else m.get("title") for m in progress.get("completed_modules", [])],
+            "modules_list": progress.get("completed_module_names", []),
+            "lessons_list": progress.get("completed_lesson_titles", []),
             "dictionary_groups": grouped_dict,
+            "vocab_stats": vocab_stats,
+            "word_of_week": word_of_week,
         },
     )
 

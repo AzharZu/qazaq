@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block content %}
+{% extends "admin/admin_base.html" %}
+{% block admin_content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h3 class="mb-1">Блоки урока "{{ lesson.title }}"</h3>
@@ -11,38 +11,61 @@
     </div>
 </div>
 <div class="card shadow-sm">
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>ID</th>
-                    <th>Тип</th>
-                    <th>Порядок</th>
-                    <th class="text-end">Действия</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for block in lesson.blocks %}
-                <tr>
-                    <td>{{ block.id }}</td>
-                    <td><span class="badge bg-light text-dark border">{{ block.block_type }}</span></td>
-                    <td class="fw-semibold">{{ block.order }}</td>
-                    <td class="text-end">
-                        <form method="post" action="/admin/block/{{ block.id }}/move-up" class="d-inline">
-                            <button type="submit" class="btn btn-sm btn-outline-secondary" title="Вверх">↑</button>
-                        </form>
-                        <form method="post" action="/admin/block/{{ block.id }}/move-down" class="d-inline">
-                            <button type="submit" class="btn btn-sm btn-outline-secondary" title="Вниз">↓</button>
-                        </form>
-                        <a class="btn btn-sm btn-outline-primary" href="/admin/block/{{ block.id }}/edit">Редактировать</a>
-                        <form method="post" action="/admin/block/{{ block.id }}/delete" class="d-inline" onsubmit="return confirm('Удалить блок?');">
-                            <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
-                        </form>
-                    </td>
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table>
+    <div class="list-group list-group-flush" id="blocks-list">
+        {% for block in lesson.blocks %}
+        <div class="list-group-item d-flex align-items-center justify-content-between gap-2 draggable-block" draggable="true" data-id="{{ block.id }}" data-order="{{ block.order }}">
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge bg-light text-dark border">#{{ block.order }}</span>
+                <span class="badge bg-secondary">{{ block.block_type }}</span>
+                <span class="text-muted small">ID {{ block.id }}</span>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <a class="btn btn-sm btn-outline-primary" href="/admin/block/{{ block.id }}/edit">Редактировать</a>
+                <form method="post" action="/admin/block/{{ block.id }}/delete" class="d-inline" onsubmit="return confirm('Удалить блок?');">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
     </div>
 </div>
+<script>
+    const list = document.getElementById("blocks-list");
+    let dragEl = null;
+    list?.addEventListener("dragstart", (e) => {
+        dragEl = e.target.closest(".draggable-block");
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", "");
+        dragEl.classList.add("dragging");
+    });
+    list?.addEventListener("dragend", () => {
+        dragEl?.classList.remove("dragging");
+        dragEl = null;
+    });
+    list?.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        const after = Array.from(list.querySelectorAll(".draggable-block:not(.dragging)")).find((el) => {
+            const box = el.getBoundingClientRect();
+            return e.clientY < box.top + box.height / 2;
+        });
+        if (!dragEl) return;
+        if (after) list.insertBefore(dragEl, after);
+        else list.appendChild(dragEl);
+    });
+    list?.addEventListener("drop", async () => {
+        const ids = Array.from(list.querySelectorAll(".draggable-block")).map((el, idx) => ({
+            id: el.dataset.id,
+            order: idx + 1,
+        }));
+        for (const item of ids) {
+            const form = new FormData();
+            form.append("new_order", item.order);
+            await fetch(`/admin/block/${item.id}/move-to`, { method: "POST", body: form, credentials: "include" });
+        }
+        ids.forEach((item, idx) => {
+            const el = list.querySelector(`.draggable-block[data-id="${item.id}"] .badge`);
+            if (el) el.textContent = `#${idx + 1}`;
+        });
+    });
+</script>
 {% endblock %}

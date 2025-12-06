@@ -16,22 +16,20 @@
 
 <section class="page-section">
     <div class="d-flex justify-content-start mb-3">
-        <a href="/course/{{ lesson.module.course.slug }}/module/{{ lesson.module.id }}" class="btn-ghost text-decoration-none text-dark">Назад</a>
+        <a href="/course/{{ lesson.module.course.slug }}/module/{{ lesson.module.id }}" class="btn-ghost text-decoration-none">← К модулю</a>
     </div>
 
     <h2 class="fw-bold mb-4">Теория</h2>
 
-    <div class="placeholder-lg d-flex align-items-center justify-content-center mb-4">
-        <span class="fs-3 text-muted">▶︎</span>
-    </div>
-
-    {% set blocks = lesson.blocks or [] %}
-    {% set theory_block = blocks | selectattr('block_type', 'equalto', 'theory') | first %}
-    {% set example_block = blocks | selectattr('block_type', 'equalto', 'example') | first %}
-
-    <div class="card-plate mb-4">
+    <div class="lesson-block">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="block-label">Теория</span>
+            <span class="status-badge info">TextBlock</span>
+        </div>
+        {% set blocks = lesson.blocks or [] %}
+        {% set theory_block = blocks | selectattr('block_type', 'equalto', 'theory') | first %}
         <div class="fw-semibold mb-2">{{ theory_block.content.title if theory_block and theory_block.content.title is defined else lesson.title }}</div>
-        <p class="mb-3">{{ theory_block.content.text if theory_block else lesson.description }}</p>
+        <p class="mb-3 text-muted">{{ theory_block.content.text if theory_block else lesson.description }}</p>
         {% if theory_block and theory_block.content.points is defined %}
         <ul class="mb-0">
             {% for point in theory_block.content.points %}
@@ -41,15 +39,19 @@
         {% endif %}
     </div>
 
-    <div class="card-plate mb-4">
-        <div class="fw-semibold mb-2">Примеры</div>
+    <div class="lesson-block">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="block-label">Примеры</span>
+            <span class="status-badge info">Examples</span>
+        </div>
+        {% set example_block = blocks | selectattr('block_type', 'equalto', 'example') | first %}
         {% if example_block %}
             {% set example_rows = example_block.content.rows if example_block.content.rows is defined else example_block.content.examples if example_block.content.examples is defined else [] %}
             {% if example_rows %}
             <ul class="mb-0">
                 {% for row in example_rows %}
                 {% if row.kz is defined and row.ru is defined %}
-                <li>{{ row.kz }} — {{ row.ru }}</li>
+                <li class="fw-semibold">{{ row.kz }} <span class="text-muted">— {{ row.ru }}</span></li>
                 {% else %}
                 <li>{{ row }}</li>
                 {% endif %}
@@ -64,7 +66,7 @@
     </div>
 
     <div class="d-flex justify-content-end">
-        <a href="/lesson/{{ lesson.id }}?view=flashcards" class="btn btn-dark">Перейти к флэш-карточкам</a>
+        <a href="/lesson/{{ lesson.id }}?view=flashcards" class="btn btn-primary">Перейти к флэш-карточкам</a>
     </div>
 </section>
 {% endblock %}

@@ -1,0 +1,25 @@
+{% extends "admin/admin_base.html" %}
+{% block admin_content %}
+<div class="admin-breadcrumbs">Blocks</div>
+<h3 class="mb-2">Блоки уроков</h3>
+<p class="text-muted mb-3">Порядок и типы блоков по всем урокам.</p>
+<div class="admin-grid">
+    {% for block in blocks %}
+    <div class="admin-card">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="admin-card__meta">{{ block.lesson.module.course.name if block.lesson and block.lesson.module and block.lesson.module.course else "Course" }} · {{ block.lesson.module.name if block.lesson and block.lesson.module else "Module" }} · {{ block.lesson.title if block.lesson else "Lesson" }}</div>
+                <div class="admin-card__title">{{ block.block_type|upper }} — Блок #{{ block.order }}</div>
+                <div class="admin-card__meta">{{ block.content|tojson|truncate(120) }}</div>
+            </div>
+            <span class="badge-pill">ID {{ block.id }}</span>
+        </div>
+        <div class="admin-actions">
+            <a class="admin-btn primary" href="/admin/block/{{ block.id }}/edit">Редактировать</a>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-muted">Блоков нет.</div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -37,11 +37,17 @@ def get_progress_for_user(db: Session, user_id: int) -> Dict:
     percent = int((completed_lessons / total_lessons) * 100) if total_lessons else 0
 
     completed_modules: List[models.Module] = []
+    completed_module_names: List[str] = []
+    completed_lesson_titles: List[str] = []
     certificates: List[dict] = []
     for m in course.modules:
         module_lessons = [l for l in m.lessons]
+        for l in module_lessons:
+            if progress_map.get(l.id) == "done":
+                completed_lesson_titles.append(l.title)
         if module_lessons and all(progress_map.get(l.id) == "done" for l in module_lessons):
             completed_modules.append(m)
+            completed_module_names.append(m.name or f"Модуль {m.order}")
             certificates.append({"id": m.id, "title": m.name or f"Модуль {m.order}"})
 
     return {
@@ -50,5 +56,7 @@ def get_progress_for_user(db: Session, user_id: int) -> Dict:
         "total_lessons": total_lessons,
         "percent": percent,
         "completed_modules": completed_modules,
+        "completed_module_names": completed_module_names,
+        "completed_lesson_titles": completed_lesson_titles,
         "certificates": certificates,
     }

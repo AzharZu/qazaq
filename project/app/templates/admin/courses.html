@@ -1,22 +1,31 @@
-{% extends "base.html" %}
-{% block content %}
+{% extends "admin/admin_base.html" %}
+{% block admin_content %}
+<div class="admin-breadcrumbs">Courses</div>
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3>Курсы</h3>
+    <div>
+        <h3 class="mb-1">Курсы</h3>
+        <p class="text-muted mb-0">Управляйте курсами, открывайте модули и редактируйте настройки.</p>
+    </div>
+    <a class="admin-btn primary" href="/admin/course/new">Добавить курс</a>
 </div>
-<table class="table table-striped">
-    <thead><tr><th>ID</th><th>Название</th><th>Audience</th><th></th></tr></thead>
-    <tbody>
+<div class="admin-grid">
     {% for course in courses %}
-    <tr>
-        <td>{{ course.id }}</td>
-        <td>{{ course.name }}</td>
-        <td>{{ course.audience }}</td>
-        <td class="text-end">
-            <a class="btn btn-sm btn-outline-primary" href="/admin/course/{{ course.id }}/edit">Редактировать</a>
-            <a class="btn btn-sm btn-outline-secondary" href="/admin/course/{{ course.id }}/modules">Модули</a>
-        </td>
-    </tr>
+    <div class="admin-card">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="admin-card__title">{{ course.name }}</div>
+                <div class="admin-card__meta">{{ course.audience or "general" }} · {{ course.description|truncate(80) }}</div>
+            </div>
+            <span class="badge-pill">ID {{ course.id }}</span>
+        </div>
+        <div class="admin-actions">
+            <a class="admin-btn primary" href="/admin/course/{{ course.id }}/modules">Открыть модули</a>
+            <a class="admin-btn" href="/admin/course/{{ course.id }}/edit">Редактировать</a>
+            <a class="admin-btn" href="/course/{{ course.slug }}">Предпросмотр</a>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-muted">Курсов пока нет.</div>
     {% endfor %}
-    </tbody>
-</table>
+</div>
 {% endblock %}

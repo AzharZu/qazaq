@@ -13,6 +13,8 @@ from project.app.models import (
     Quiz,
     UserProgress,
     UserDictionary,
+    VocabularyWord,
+    WordOfTheWeek,
 )
 
 def init_db():

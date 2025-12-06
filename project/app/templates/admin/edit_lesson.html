@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block content %}
+{% extends "admin/admin_base.html" %}
+{% block admin_content %}
 <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
     <div>
         <div class="text-muted small mb-1">
@@ -9,7 +9,7 @@
         <p class="text-muted mb-0">Обновите заголовок, описание и метаданные. Все блоки — на странице конструктора.</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-        <a class="btn btn-outline-dark" href="/lesson/{{ lesson.id }}">👁 Смотреть урок</a>
+        <a class="btn btn-outline-dark" href="/lesson/{{ lesson.id }}">Смотреть урок</a>
         <a class="btn btn-outline-secondary" href="/admin/lesson/{{ lesson.id }}">⬅️ Назад к конструктору</a>
     </div>
 </div>

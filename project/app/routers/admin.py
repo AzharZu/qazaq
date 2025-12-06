@@ -1,6 +1,9 @@
+from pathlib import Path
 from typing import Optional
+import uuid
+import shutil
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, UploadFile, File, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session, selectinload
 
@@ -10,6 +13,12 @@ from ..dependencies import require_admin
 from ..templating import render_template
 
 router = APIRouter(dependencies=[Depends(require_admin)])
+
+STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
+MEDIA_AUDIO = STATIC_DIR / "audio"
+MEDIA_VIDEO = STATIC_DIR / "video"
+MEDIA_AUDIO.mkdir(parents=True, exist_ok=True)
+MEDIA_VIDEO.mkdir(parents=True, exist_ok=True)
 
 BLOCK_TYPES = [
     "theory",
@@ -201,6 +210,107 @@ def _breadcrumbs_for_lesson(lesson: models.Lesson | None) -> list[dict[str, str]
     return crumbs
 
 
+@router.get("/modules")
+async def modules_all(request: Request, db: Session = Depends(get_db)):
+    modules = (
+        db.query(models.Module)
+        .options(selectinload(models.Module.course))
+        .order_by(models.Module.course_id, models.Module.order)
+        .all()
+    )
+    return render_template(request, "admin/modules_all.html", {"modules": modules})
+
+
+@router.get("/lessons")
+async def lessons_all(request: Request, db: Session = Depends(get_db)):
+    lessons = (
+        db.query(models.Lesson)
+        .options(selectinload(models.Lesson.module).selectinload(models.Module.course))
+        .order_by(models.Lesson.module_id, models.Lesson.order)
+        .all()
+    )
+    return render_template(request, "admin/lessons_all.html", {"lessons": lessons})
+
+
+@router.get("/blocks")
+async def blocks_all(request: Request, db: Session = Depends(get_db)):
+    blocks = (
+        db.query(models.LessonBlock)
+        .options(selectinload(models.LessonBlock.lesson).selectinload(models.Lesson.module).selectinload(models.Module.course))
+        .order_by(models.LessonBlock.lesson_id, models.LessonBlock.order)
+        .all()
+    )
+    return render_template(request, "admin/blocks_all.html", {"blocks": blocks})
+
+
+@router.get("/quizzes")
+async def quizzes_all(request: Request, db: Session = Depends(get_db)):
+    quizzes = (
+        db.query(models.Quiz)
+        .options(selectinload(models.Quiz.lesson).selectinload(models.Lesson.module).selectinload(models.Module.course))
+        .order_by(models.Quiz.lesson_id, models.Quiz.order)
+        .all()
+    )
+    return render_template(request, "admin/quizzes_all.html", {"quizzes": quizzes})
+
+
+@router.get("/students")
+async def students_page(request: Request, db: Session = Depends(get_db)):
+    users = db.query(models.User).order_by(models.User.created_at.desc()).all()
+    return render_template(request, "admin/students.html", {"users": users})
+
+
+@router.get("/progress")
+async def progress_page(request: Request, db: Session = Depends(get_db)):
+    total_users = db.query(models.User).count()
+    total_words = db.query(models.VocabularyWord).count() if hasattr(models, "VocabularyWord") else 0
+    learned_words = (
+        db.query(models.VocabularyWord).filter(models.VocabularyWord.learned.is_(True)).count()
+        if hasattr(models, "VocabularyWord")
+        else 0
+    )
+    total_quizzes = db.query(models.Quiz).count()
+    return render_template(
+        request,
+        "admin/progress.html",
+        {
+            "total_users": total_users,
+            "total_words": total_words,
+            "learned_words": learned_words,
+            "total_quizzes": total_quizzes,
+        },
+    )
+
+
+def _save_media(file: UploadFile, media_type: str) -> str:
+    ext = Path(file.filename or "").suffix
+    uid = uuid.uuid4().hex
+    if media_type == "video":
+        dest = MEDIA_VIDEO / f"{uid}{ext or '.mp4'}"
+    else:
+        dest = MEDIA_AUDIO / f"{uid}{ext or '.mp3'}"
+    with dest.open("wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    return f"/static/{'video' if media_type == 'video' else 'audio'}/{dest.name}"
+
+
+@router.get("/media")
+async def media_page(request: Request):
+    return render_template(request, "admin/media_upload.html", {})
+
+
+@router.post("/media")
+async def media_upload(
+    request: Request,
+    media_type: str = Form("audio"),
+    file: UploadFile = File(...),
+):
+    if media_type not in {"audio", "video"}:
+        raise HTTPException(status_code=400, detail="Invalid media type")
+    url = _save_media(file, media_type)
+    return render_template(request, "admin/media_upload.html", {"uploaded_url": url, "media_type": media_type})
+
+
 @router.get("/")
 async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     data = {
@@ -389,6 +499,7 @@ async def admin_lesson_blocks(lesson_id: int, request: Request, db: Session = De
 
 
 def _extract_block_form_data(form) -> dict:
+    getlist = form.getlist if hasattr(form, "getlist") else None
     return {
         "title": form.get("title"),
         "text": form.get("text"),
@@ -398,8 +509,8 @@ def _extract_block_form_data(form) -> dict:
         "example_2_ru": form.get("example_2_ru"),
         "example_3_kz": form.get("example_3_kz"),
         "example_3_ru": form.get("example_3_ru"),
-        "selected_flashcard_ids": form.getlist("selected_flashcard_ids") if hasattr(form, "getlist") else [],
-        "selected_quiz_ids": form.getlist("selected_quiz_ids") if hasattr(form, "getlist") else [],
+        "selected_flashcard_ids": list(getlist("selected_flashcard_ids")) if getlist else [],
+        "selected_quiz_ids": list(getlist("selected_quiz_ids")) if getlist else [],
         "task": form.get("task"),
         "parts": form.get("parts"),
         "correct_order": form.get("correct_order"),
@@ -570,6 +681,15 @@ async def admin_move_block_down(block_id: int, db: Session = Depends(get_db)):
     if not block:
         raise HTTPException(status_code=404, detail="Block not found")
     _update_block_order(db, block, block.order + 1)
+    return _redirect(f"/admin/lesson/{block.lesson_id}")
+
+
+@router.post("/block/{block_id}/move-to")
+async def admin_move_block_to(block_id: int, new_order: int = Form(...), db: Session = Depends(get_db)):
+    block = db.get(models.LessonBlock, block_id)
+    if not block:
+        raise HTTPException(status_code=404, detail="Block not found")
+    _update_block_order(db, block, new_order)
     return _redirect(f"/admin/lesson/{block.lesson_id}")
 
 

@@ -16,7 +16,7 @@
 
 <section class="page-section">
     <div class="d-flex justify-content-start mb-3">
-        <a href="/lesson/{{ lesson.id }}?view=flashcards" class="btn-ghost text-decoration-none text-dark">Назад</a>
+        <a href="/lesson/{{ lesson.id }}?view=flashcards" class="btn-ghost text-decoration-none">← К карточкам</a>
     </div>
 
     <h2 class="fw-bold mb-4">Задания</h2>
@@ -45,7 +45,7 @@
             {% if quiz %}
             <div class="vstack gap-2">
                 {% for opt in quiz.options %}
-                <label class="task-area d-flex align-items-center gap-2">
+                <label class="quiz-option">
                     <input type="radio" name="quiz-{{ quiz.id }}" class="form-check-input mt-0">
                     <span>{{ opt }}</span>
                 </label>
@@ -85,7 +85,7 @@
     </div>
 
     <form method="post" action="/lesson/{{ lesson.id }}/complete" class="d-flex justify-content-end">
-        <button class="btn btn-dark">Завершить урок</button>
+        <button class="btn btn-primary">Завершить урок</button>
     </form>
 </section>
 {% endblock %}

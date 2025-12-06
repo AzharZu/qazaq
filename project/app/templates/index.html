@@ -1,49 +1,119 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="page-section">
-    <div class="hero-block">
-        <div class="display-title">Изучи казахский под свою цель</div>
-        <p class="lead-text">Минималистичный интерфейс, четкая структура уроков и понятная навигация. Выберите курс под свой уровень или пройдите тест.</p>
-        <div class="d-flex justify-content-center flex-wrap gap-3">
-            <a href="/placement-test" class="cta-primary text-decoration-none">Пройти тест уровня</a>
-            <a href="/signup" class="cta-secondary text-decoration-none">Начать бесплатно</a>
+    <div class="hero-grid hero-shell">
+        <div class="d-flex flex-column gap-3">
+            <div>
+                <p class="eyebrow">Онлайн-академия казахского языка</p>
+                <h1 class="display-title mb-2">Учите казахский уверенно и по структуре</h1>
+                <p class="lead-text mb-0">Курсы, карточки, мини-игры и AutoChecker в одном минималистичном интерфейсе.</p>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="/placement-test" class="btn btn-primary">Пройти placement-тест</a>
+                <a href="/signup" class="btn btn-dark">Начать бесплатно</a>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <div class="stat-tile">
+                    <div class="small text-muted">Курсы</div>
+                    <div class="fw-bold fs-6">KazKids · KazPro · Qyzmet Qazaq</div>
+                </div>
+                <div class="stat-tile">
+                    <div class="small text-muted">Инструменты</div>
+                    <div class="fw-bold fs-6">AutoChecker · словарь · игры</div>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex flex-column gap-3">
+            {% if recommended %}
+            <div class="card-soft h-100">
+                <div class="eyebrow">Рекомендовано по тесту</div>
+                <h4 class="fw-bold mb-1">{{ recommended.name }}</h4>
+                <p class="text-muted mb-2">{{ recommended.description }}</p>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <span class="pill">
+                        {% set audience_map = {'kids': 'Для детей и школьников', 'adult': 'Для взрослых', 'gov': 'Для госслужащих'} %}
+                        {{ audience_map.get(recommended.audience, recommended.audience) }}
+                    </span>
+                    <a class="btn btn-primary" href="/course/{{ recommended.slug }}">Перейти к курсу</a>
+                </div>
+            </div>
+            {% else %}
+            <div class="card-soft h-100">
+                <div class="eyebrow">Не знаете, с чего начать?</div>
+                <h4 class="fw-bold mb-1">Пройдите короткий тест уровня</h4>
+                <p class="text-muted mb-3">Мы подберём подходящий курс: KazKids, KazPro или Qyzmet Qazaq.</p>
+                <a class="btn btn-outline-dark w-100" href="/placement-test">Пройти тест уровня</a>
+            </div>
+            {% endif %}
         </div>
     </div>
 </section>
 
-{% if recommended %}
 <section class="page-section">
-    <div class="card-soft d-flex flex-column flex-lg-row justify-content-between align-items-start gap-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
         <div>
-            <div class="eyebrow text-uppercase text-muted">Рекомендовано</div>
-            <h3 class="fw-bold mb-2">{{ recommended.name }}</h3>
-            <p class="mb-0 text-muted">{{ recommended.description }}</p>
+            <p class="eyebrow">Каталог</p>
+            <h2 class="display-title mb-0">Три курса — один язык</h2>
+            <p class="lead-text mb-0">KazKids · KazPro · Qyzmet Qazaq. Чёткая структура модулей, аудио и задания.</p>
         </div>
-        <a class="cta-primary text-decoration-none" href="/course/{{ recommended.slug }}">Перейти к курсу</a>
-    </div>
-</section>
-{% endif %}
-
-<section class="page-section">
-    <div class="text-center mb-4">
-        <h2 class="display-title">Три курса — один язык</h2>
-        <p class="lead-text mb-0">Выберите формат обучения: для детей, взрослых или делового общения.</p>
+        <a href="/courses" class="btn btn-outline-dark">Смотреть все</a>
     </div>
     <div class="row g-4">
+        {% set audience_map = {'kids': 'Для детей и школьников', 'adult': 'Для взрослых', 'gov': 'Для госслужащих'} %}
         {% for course in courses[:3] %}
         <div class="col-md-4">
-            <div class="card-plate h-100 d-flex flex-column justify-content-between">
-                <div>
-                    <div class="course-card-title">{{ course.name }}</div>
-                    <p class="course-card-text">{{ course.description }}</p>
+            <div class="course-card h-100 d-flex flex-column">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="course-chip">
+                        {{ audience_map.get(course.audience, course.audience) }}
+                    </span>
+                    <span class="status-badge info">
+                        {% if course.modules is defined and course.modules %}{{ course.modules|length }} модулей{% else %}Курс{% endif %}
+                    </span>
                 </div>
-                <div class="d-flex flex-wrap gap-2 align-items-center">
-                    <span class="pill text-uppercase">{{ course.audience }}</span>
-                    <a href="/course/{{ course.slug }}" class="btn btn-dark w-100 mt-3">Начать курс</a>
-                </div>
+                <h5 class="fw-bold mb-2">{{ course.name }}</h5>
+                <p class="text-muted flex-grow-1">{{ course.description }}</p>
+                <a href="/course/{{ course.slug }}" class="btn btn-dark w-100">Начать курс</a>
             </div>
         </div>
         {% endfor %}
     </div>
 </section>
+
+<section class="page-section">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <div>
+            <p class="eyebrow">Возможности</p>
+            <h2 class="display-title mb-0">AutoChecker, словарь и уроки — в одном потоке</h2>
+            <p class="lead-text mb-0">Проверка текста, карточки с озвучкой и структурированные блоки уроков.</p>
+        </div>
+    </div>
+    <div class="hero-grid">
+        <div class="surface-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="block-label">AutoChecker</span>
+                <span class="pill">Whisper + GPT</span>
+            </div>
+            <p class="mb-3 text-muted">Подсветка ошибок, улучшенный вариант текста и история проверок.</p>
+            <a href="/autochecker" class="btn btn-outline-dark w-100">Попробовать</a>
+        </div>
+        <div class="surface-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="block-label">Словарь и карточки</span>
+                <span class="pill">Озвучка + игры</span>
+            </div>
+            <p class="mb-3 text-muted">Флип-карты с TTS, отметка выученного и мини-игры на перевод.</p>
+            <a href="/vocabulary" class="btn btn-outline-dark w-100">Открыть словарь</a>
+        </div>
+        <div class="surface-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="block-label">Уроки</span>
+                <span class="pill">Текст · аудио · квиз</span>
+            </div>
+            <p class="mb-3 text-muted">Блоки теории, грамматики, аудио, викторин и финальный CTA «Урок завершён».</p>
+            <a href="/courses" class="btn btn-outline-dark w-100">К урокам</a>
+        </div>
+    </div>
+</section>
+
 {% endblock %}

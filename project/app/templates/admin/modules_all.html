@@ -1,0 +1,26 @@
+{% extends "admin/admin_base.html" %}
+{% block admin_content %}
+<div class="admin-breadcrumbs">Modules</div>
+<h3 class="mb-2">Все модули</h3>
+<p class="text-muted mb-3">Быстрый доступ к модулям и их урокам.</p>
+<div class="admin-grid">
+    {% for module in modules %}
+    <div class="admin-card">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="admin-card__meta">{{ module.course.name if module.course else "Course" }}</div>
+                <div class="admin-card__title">Модуль {{ module.order }} — {{ module.name }}</div>
+                <div class="admin-card__meta">{{ module.description or "Описание не заполнено" | truncate(120) }}</div>
+            </div>
+            <span class="badge-pill">ID {{ module.id }}</span>
+        </div>
+        <div class="admin-actions">
+            <a class="admin-btn primary" href="/admin/module/{{ module.id }}/lessons">Уроки</a>
+            <a class="admin-btn" href="/admin/module/{{ module.id }}/edit">Редактировать</a>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-muted">Модулей нет.</div>
+    {% endfor %}
+</div>
+{% endblock %}
