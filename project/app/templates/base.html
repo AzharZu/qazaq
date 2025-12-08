@@ -21,9 +21,9 @@
         <nav class="nav-links">
             <a class="nav-link {% if current_path == '/' %}active{% endif %}" href="/">Главная</a>
             <a class="nav-link {% if '/courses' in current_path %}active{% endif %}" href="/courses">Курсы</a>
-            {% if not (current_user and current_user.level) %}
-            <a class="nav-link {% if '/placement' in current_path %}active{% endif %}" href="/placement-test">Тест уровня</a>
-            {% endif %}
+            <a class="nav-link {% if '/placement' in current_path %}active{% endif %}" href="/placement-test">
+                {% if current_user %}Пересдать тест{% else %}Тест уровня{% endif %}
+            </a>
             <a class="nav-link {% if '/autochecker' in current_path %}active{% endif %}" href="/autochecker">AutoChecker</a>
             <a class="nav-link {% if '/vocabulary' in current_path or '/dictionary' in current_path %}active{% endif %}" href="/vocabulary">Словарь</a>
             {% if current_user and current_user.is_admin %}
@@ -31,8 +31,6 @@
             {% endif %}
         </nav>
         <div class="nav-actions">
-            <button class="nav-chip" type="button">KZ / RU</button>
-            <button class="icon-button" type="button" aria-label="Уведомления">Увед.</button>
             {% if current_user %}
                 <a class="btn btn-outline-dark" href="/profile">Профиль</a>
                 <a class="btn btn-primary" href="/settings">Настройки</a>

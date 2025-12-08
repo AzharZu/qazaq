@@ -6,6 +6,7 @@ from sqlalchemy import (
     Column,
     Date,
     DateTime,
+    Enum,
     ForeignKey,
     Integer,
     JSON,
@@ -17,6 +18,21 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from ..database import Base
+
+# Allowed block categories used across the lesson editor
+BLOCK_TYPE_CHOICES = (
+    "theory",
+    "example",
+    "pronunciation",
+    "flashcards",
+    "quiz",
+    "audio",
+    "image",
+    "assignment",
+    "mascot_tip",
+    "dragdrop",  # legacy support
+    "story",  # legacy support
+)
 
 
 class User(Base):
@@ -103,6 +119,11 @@ class Lesson(Base):
     difficulty = Column(String, nullable=True)
     age_group = Column(String, nullable=True)  # kids / adult / gov
     order = Column(Integer, nullable=False, default=1)
+    status = Column(String, nullable=False, default="draft")  # draft / published / archived
+    language = Column(String, nullable=False, default="kk")
+    version = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
     module: "Module" = relationship("Module", back_populates="lessons")
     blocks: List["LessonBlock"] = relationship(
@@ -122,11 +143,23 @@ class LessonBlock(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     lesson_id = Column(Integer, ForeignKey("lessons.id"), nullable=False)
-    block_type = Column(String, nullable=False)
+    block_type = Column(Enum(*BLOCK_TYPE_CHOICES, name="block_type_enum"), nullable=False)
     content = Column(JSON, nullable=False)
     order = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (UniqueConstraint("lesson_id", "order", name="uq_lesson_blocks_lesson_order"),)
 
     lesson: "Lesson" = relationship("Lesson", back_populates="blocks")
+
+    @property
+    def type(self) -> str:
+        return self.block_type
+
+    @type.setter
+    def type(self, value: str) -> None:
+        self.block_type = value
 
 
 class Flashcard(Base):

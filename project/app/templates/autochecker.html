@@ -6,7 +6,7 @@
             <div>
                 <div class="eyebrow text-uppercase text-muted">AutoChecker</div>
                 <h1 class="display-title fs-2 mb-1">ИИ-помощник для вашего текста</h1>
-                <p class="lead-text mb-0">Whisper-голосовой ввод + GPT-подсветка ошибок. Сравнение «до» и «после» и история проверок.</p>
+                <p class="lead-text mb-0">Whisper-голосовой ввод + GPT-подсветка ошибок. Сравнение «до» и «после».</p>
             </div>
             {% if error %}<div class="alert alert-danger mb-0">{{ error }}</div>{% endif %}
             <form method="post" class="vstack gap-3 position-relative">
@@ -36,9 +36,9 @@
                     <textarea id="autochecker-text" name="user_text" placeholder="Введите текст на казахском или русском для проверки…" class="form-control"
                               style="min-height: 240px;">{{ input_text }}</textarea>
                     <button type="button" class="voice-btn" id="mic-btn">Записать голос</button>
+                    <div class="small text-muted mt-1" id="mic-status">Микрофон выключен</div>
                 </div>
                 <div class="d-flex justify-content-end gap-2">
-                    <a href="/autochecker/history" class="btn btn-outline-dark">История</a>
                     <button type="submit" class="btn btn-primary">Проверить через ИИ</button>
                 </div>
             </form>
@@ -140,11 +140,14 @@
 (function() {
     const textarea = document.getElementById("autochecker-text");
     const micBtn = document.getElementById("mic-btn");
+    const micStatus = document.getElementById("mic-status");
     if (!textarea || !micBtn) return;
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-        micBtn.addEventListener("click", () => alert("Распознавание речи не поддерживается в этом браузере."));
+        micBtn.disabled = true;
+        micBtn.textContent = "Запись недоступна";
+        micStatus && (micStatus.textContent = "Браузер не поддерживает запись");
         return;
     }
 
@@ -158,6 +161,7 @@
         listening = active;
         micBtn.classList.toggle("listening", active);
         micBtn.textContent = active ? "Идёт запись…" : "Записать голос";
+        if (micStatus) micStatus.textContent = active ? "Идёт запись" : "Микрофон выключен";
     };
 
     recognition.onresult = (event) => {

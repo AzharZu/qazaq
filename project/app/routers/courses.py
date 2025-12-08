@@ -7,6 +7,7 @@ from .. import models
 from ..database import get_db
 from ..dependencies import get_current_user
 from ..services import recommend_course_slug
+from ..services.progress import get_progress_for_user
 from ..templating import render_template
 
 router = APIRouter(tags=["courses"])
@@ -19,24 +20,38 @@ async def index(request: Request, db: Session = Depends(get_db)):
         request.session.get("age"), request.session.get("target")
     )
     recommended = next((c for c in courses if c.slug == recommended_slug), courses[0] if courses else None)
+    current_user = getattr(request.state, "user", None)
+    progress = (
+        get_progress_for_user(db, current_user.id, recommended.slug if recommended else None)
+        if current_user
+        else {}
+    )
     return render_template(
         request,
         "index.html",
         {
             "courses": courses,
             "recommended": recommended,
+            "home_progress": progress,
         },
     )
 
 
 @router.get("/courses")
 async def courses_page(request: Request, db: Session = Depends(get_db)):
-    courses = db.query(models.Course).all()
+    courses = db.query(models.Course).options(selectinload(models.Course.modules).selectinload(models.Module.lessons)).all()
+    current_user = getattr(request.state, "user", None)
+    course_progress = {}
+    if current_user:
+        for c in courses:
+            percent, next_lesson, _ = _calculate_progress(db, current_user, c)
+            course_progress[c.id] = {"percent": percent, "next_lesson": next_lesson}
     return render_template(
         request,
         "courses.html",
         {
             "courses": courses,
+            "course_progress": course_progress,
         },
     )
 

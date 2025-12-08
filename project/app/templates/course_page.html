@@ -25,7 +25,9 @@
                 </div>
                 <div class="small text-muted">{{ progress }}%</div>
                 <div class="d-flex gap-2 flex-wrap mt-3">
-                    <a href="{{ '/lesson/' ~ next_lesson.id if next_lesson else '#' }}" class="btn btn-primary">Продолжить</a>
+                <a href="{{ '/lesson/' ~ next_lesson.id if next_lesson else '#' }}" class="btn btn-primary">
+                    {% if next_lesson %}Продолжить урок{% else %}Начать курс{% endif %}
+                </a>
                     <a href="/placement-test" class="btn btn-outline-dark">Перепройти тест</a>
                 </div>
             </div>

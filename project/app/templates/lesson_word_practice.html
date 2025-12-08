@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-section">
+    <div class="lesson-band mb-4">
+        <div class="d-flex flex-column flex-md-row align-items-md-center gap-3 justify-content-between">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <a href="/course/{{ lesson.module.course.slug }}/module/{{ lesson.module.id }}" class="btn-ghost text-decoration-none">← К модулю</a>
+                <span class="block-label">Урок: {{ lesson.title }}</span>
+            </div>
+            <div class="flex-grow-1 mx-md-4">
+                <div class="progress progress-slim mb-1">
+                    <div class="progress-bar" role="progressbar" style="width: {{ course_progress }}%;"></div>
+                </div>
+            </div>
+            <div class="small text-muted">{{ course_progress }}%</div>
+        </div>
+    </div>
+
+    <div class="practice-shell">
+        <div class="practice-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <div class="muted-label mb-1">{{ lesson.module.course.name }} · Урок {{ lesson.module.order }}</div>
+                <h2 class="fw-bold mb-1">{{ lesson.title }}</h2>
+                <div class="small text-muted">Слова {{ word_index + 1 }} / {{ word_total }}</div>
+            </div>
+            <div class="practice-progress text-end">
+                <div class="progress progress-slim mb-1">
+                    <div class="progress-bar" style="width: {{ word_progress }}%;"></div>
+                </div>
+                <div class="small text-muted">{{ word_progress }}% слов</div>
+            </div>
+        </div>
+
+        {% if not word %}
+            <div class="alert alert-light">Слова для практики не найдены. Добавьте флэш-карточки в уроке.</div>
+        {% else %}
+        <div class="word-grid">
+            <div class="word-card shadow-soft">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="muted-label">Слушайте слово</div>
+                    <div class="small text-muted">#{{ word_index + 1 }}</div>
+                </div>
+                <div class="word-main">
+                    <div>
+                        <div class="word-title">{{ word.front }}</div>
+                        <div class="text-muted">{{ word.back }}</div>
+                        {% if word.example_sentence %}<div class="small text-muted mt-1">{{ word.example_sentence }}</div>{% endif %}
+                    </div>
+                    <div class="word-image placeholder-box"></div>
+                </div>
+                <div class="d-flex gap-2 align-items-center mt-3">
+                    <button class="btn btn-outline-dark" id="play-audio" data-audio="{{ word.audio_url or '' }}">▶ Озвучить</button>
+                    <span class="small text-muted">Прослушайте правильное произношение</span>
+                </div>
+            </div>
+
+            <div class="voice-card shadow-soft">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="muted-label">Практика произношения</span>
+                    <span class="status-badge info" id="voice-status">Готовы к записи</span>
+                </div>
+                <div class="voice-stage">
+                    <button class="mic-btn" id="mic-btn" type="button">
+                        <span class="mic-icon">●</span>
+                        <span id="mic-label">Нажмите и говорите</span>
+                    </button>
+                    <div class="waveform" id="waveform">
+                        <span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                </div>
+                <div class="mt-2 small text-muted" id="mic-hint">Скажите слово вслух. Мы проверим точность и ударение.</div>
+                <div class="feedback mt-3" id="voice-feedback"></div>
+            </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
+            <form method="get" class="m-0">
+                <input type="hidden" name="view" value="words">
+                <input type="hidden" name="word_index" id="next-word-index" value="{{ word_index + 1 }}">
+                <button class="btn btn-primary" id="next-word-btn" {% if word_index + 1 >= word_total %}disabled{% endif %}>Следующее слово →</button>
+            </form>
+            <a class="btn btn-outline-dark" href="/lesson/{{ lesson.id }}?view=tasks">Перейти к заданиям</a>
+            <a class="btn btn-text" href="/lesson/{{ lesson.id }}?view=tasks">Не могу говорить</a>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<script>
+(function() {
+        const expected = "{{ word.front if word else '' }}";
+    const playBtn = document.getElementById("play-audio");
+    const micBtn = document.getElementById("mic-btn");
+    const micLabel = document.getElementById("mic-label");
+    const voiceStatus = document.getElementById("voice-status");
+    const feedbackBox = document.getElementById("voice-feedback");
+    const wave = document.getElementById("waveform");
+    const hint = document.getElementById("mic-hint");
+    const nextBtn = document.getElementById("next-word-btn");
+
+    const setFeedback = (text, tone) => {
+        if (!feedbackBox) return;
+        feedbackBox.textContent = text;
+        feedbackBox.className = `feedback mt-3 ${tone}`;
+    };
+
+    const setStatus = (text, tone) => {
+        if (!voiceStatus) return;
+        voiceStatus.textContent = text;
+        voiceStatus.className = `status-badge ${tone || 'info'}`;
+    };
+
+    const toggleWave = (on) => {
+        if (!wave) return;
+        wave.classList.toggle("active", on);
+    };
+
+    playBtn?.addEventListener("click", async () => {
+        const explicit = playBtn.dataset.audio;
+        if (explicit) {
+            new Audio(explicit).play().catch(() => {});
+            return;
+        }
+        const word = expected;
+        if (!word) return;
+        try {
+            const res = await fetch(`/tts?word=${encodeURIComponent(word)}`, { credentials: "include" });
+            const data = await res.json();
+            if (data?.url) new Audio(data.url).play().catch(() => {});
+        } catch (e) {
+            // ignore
+        }
+    });
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition && micBtn) {
+        micBtn.disabled = true;
+        micLabel.textContent = "Запись недоступна";
+        setStatus("Браузер не поддерживает запись", "warn");
+        hint.textContent = "Перейдите к заданиям или попробуйте другой браузер.";
+    }
+
+    const recognize = () => {
+        if (!SpeechRecognition) return;
+        const rec = new SpeechRecognition();
+        rec.lang = "kk-KZ";
+        rec.interimResults = false;
+        rec.maxAlternatives = 1;
+        rec.onstart = () => {
+            toggleWave(true);
+            setStatus("Идёт запись", "info");
+            micLabel.textContent = "Слушаем...";
+        };
+        rec.onerror = () => {
+            toggleWave(false);
+            setStatus("Ошибка записи", "warn");
+            micLabel.textContent = "Нажмите и говорите";
+        };
+        rec.onend = () => {
+            toggleWave(false);
+            micLabel.textContent = "Нажмите и говорите";
+        };
+        rec.onresult = (event) => {
+            toggleWave(false);
+            const spoken = event.results?.[0]?.[0]?.transcript || "";
+            const accuracy = scoreText(spoken, expected);
+            let tone = "error";
+            let msg = `Попробуйте ещё раз. Распознано: "${spoken}"`;
+            if (accuracy >= 85) {
+                tone = "success";
+                msg = "Отлично! Произношение совпадает";
+                setStatus("Произношение корректно", "success");
+                nextBtn?.removeAttribute("disabled");
+                // save progress for this word
+                const idxField = document.getElementById("next-word-index");
+                const idx = idxField ? Number(idxField.value) - 1 : {{ word_index }};
+                fetch(`/lesson/{{ lesson.id }}/word-progress`, {
+                    method: "POST",
+                    credentials: "include",
+                    body: new URLSearchParams({
+                        word_index: String(idx),
+                        status: "passed",
+                    }),
+                }).catch(() => {});
+            } else if (accuracy >= 65) {
+                tone = "warn";
+                msg = "Почти верно, проверьте ударение или окончание";
+                setStatus("Почти", "warn");
+                nextBtn?.setAttribute("disabled", "disabled");
+            } else {
+                setStatus("Нужно повторить", "error");
+                nextBtn?.setAttribute("disabled", "disabled");
+            }
+            setFeedback(msg, tone);
+        };
+        rec.start();
+    };
+
+    function scoreText(spoken, target) {
+        const clean = (s) => s.toLowerCase().replace(/[^a-zа-яёәіңғүұқөһіҢІӘҚӨҰҺ]/gi, "").trim();
+        const a = clean(spoken);
+        const b = clean(target);
+        if (!a || !b) return 0;
+        const len = Math.max(a.length, b.length);
+        let same = 0;
+        for (let i = 0; i < Math.min(a.length, b.length); i++) {
+            if (a[i] === b[i]) same += 1;
+        }
+        return Math.round((same / len) * 100);
+    }
+
+    micBtn?.addEventListener("click", (e) => {
+        e.preventDefault();
+        nextBtn?.setAttribute("disabled", "disabled");
+        setFeedback("", "");
+        recognize();
+    });
+})();
+</script>
+<script src="{{ url_for('static', path='js/pronunciation_wave.js') }}?v=1" defer></script>
+{% endblock %}

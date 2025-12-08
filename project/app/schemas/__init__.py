@@ -84,3 +84,14 @@ class LessonOut(BaseModel):
     description: Optional[str]
     order: int
     blocks: List[LessonBlockOut] = Field(default_factory=list)
+
+# Lesson editor v2 schemas
+from .lesson_editor import (  # noqa: E402,F401
+    BlockCreate,
+    BlockOut as LessonEditorBlockOut,
+    BlockType,
+    BlockUpdate,
+    LessonUpdate,
+    LessonWithBlocksOut,
+    ReorderBlocks,
+)

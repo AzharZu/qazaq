@@ -8,9 +8,11 @@
         {% if mode == "repeat" %}Повтори слово{% elif mode == "mc" %}Выбери перевод{% else %}Напиши перевод{% endif %}
     </h2>
 
-    {% if not word %}
-    <div class="text-center text-muted">Нет слов для тренировки. Добавьте их, взаимодействуя с карточками урока.</div>
-    {% else %}
+{% if not word %}
+    <div class="text-center text-muted">
+        Нет слов для тренировки. <a href="/dictionary">Перейти в словарь</a> и добавьте слова из уроков.
+    </div>
+{% else %}
     <div class="vocab-game-card shadow-soft">
         <div class="vocab-word text-center mb-3">{{ word.word }}</div>
         {% if mode != "mc" %}
@@ -27,6 +29,7 @@
             <div class="vocab-feedback mt-3" id="game-feedback"></div>
         </form>
         {% elif mode == "mc" %}
+        <input type="hidden" name="word_id" value="{{ word.id }}">
         <div class="d-grid gap-2" id="mc-options">
             {% for opt in options %}
             <button class="btn btn-outline-dark" data-option="{{ opt }}">{{ opt }}</button>
@@ -44,6 +47,10 @@
             <div class="vocab-feedback mt-3" id="game-feedback"></div>
         </form>
         {% endif %}
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <button class="btn btn-outline-dark btn-sm" id="game-next">Следующее слово</button>
+            <a class="btn btn-text" href="/dictionary">К словарю</a>
+        </div>
     </div>
     {% endif %}
 </section>
@@ -64,5 +71,5 @@
         options: {{ options|tojson if options else "[]" }}
     };
 </script>
-<script src="{{ url_for('static', path='js/vocabulary.js') }}?v=1" defer></script>
+<script src="{{ url_for('static', path='js/dictionary_games.js') }}?v=2" defer></script>
 {% endblock %}

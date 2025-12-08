@@ -1,115 +1,136 @@
-async function postXP(amount = 1) {
-  try {
-    await fetch("/xp/add", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ xp: amount, reason: "vocabulary_game" }),
-    });
-  } catch (e) {
-    // optional endpoint, ignore failures
-  }
-}
+(() => {
+  const cfg = window.gameConfig || {};
+  const mode = cfg.mode;
+  const wordBox = document.querySelector(".vocab-word");
+  const feedback = document.getElementById("game-feedback");
+  const playBtn = document.getElementById("game-play");
+  const nextBtn = document.getElementById("game-next");
 
-async function startRepeatGame() {
-  const box = document.getElementById("repeat-feedback");
-  box.textContent = "Загружаю слово...";
-  const res = await fetch("/vocabulary/game/repeat?format=json", { credentials: "include" });
-  const data = await res.json();
-  const word = data.word;
-  if (!word || !word.id) {
-    box.textContent = "Нет слов для игры.";
-    return;
-  }
-  const answer = prompt(`Прослушайте слово и введите его:\n${word.word}`);
-  if (word.word) {
-    const utter = new SpeechSynthesisUtterance(word.word);
-    speechSynthesis.speak(utter);
-  }
-  if (answer === null) return;
-  const form = new FormData();
-  form.append("word_id", word.id);
-  form.append("answer", answer);
-  const check = await fetch("/vocabulary/game/repeat/check", { method: "POST", body: form, credentials: "include" });
-  const result = await check.json();
-  if (result.correct) {
-    box.textContent = "✔ Правильно";
-    box.className = "game-feedback small text-success";
-  } else {
-    const correct = result.correct_answer ? `Правильно: ${result.correct_answer}` : "";
-    const hint = result.hint || "";
-    box.textContent = correct || hint || "Неверно";
-    box.className = "game-feedback small text-danger";
-  }
-  if (result.correct) postXP();
-}
+  const showFeedback = (text, ok) => {
+    if (!feedback) return;
+    feedback.textContent = text;
+    feedback.className = `vocab-feedback mt-3 ${ok ? "text-success" : "text-danger"}`;
+  };
 
-async function startChooseGame() {
-  const box = document.getElementById("choose-feedback");
-  box.textContent = "Загружаю слово...";
-  const res = await fetch("/vocabulary/game/mc?format=json", { credentials: "include" });
-  const data = await res.json();
-  const word = data.word;
-  const options = data.options || [];
-  if (!word || !word.id) {
-    box.textContent = "Нет слов для игры.";
-    return;
-  }
-  const picked = prompt(`${word.word}\n\nВарианты:\n${options.map((o, i) => `${i + 1}) ${o}`).join("\n")}\nВведите номер варианта`);
-  if (picked === null) return;
-  const choice = options[Number(picked) - 1] || "";
-  const form = new FormData();
-  form.append("word_id", word.id);
-  form.append("selected", choice);
-  const check = await fetch("/vocabulary/game/mc/check", { method: "POST", body: form, credentials: "include" });
-  const result = await check.json();
-  if (result.correct) {
-    box.textContent = "✔ Верно";
-    box.className = "game-feedback small text-success";
-  } else {
-    const correct = result.correct_answer ? `Правильно: ${result.correct_answer}` : "Неверно";
-    box.textContent = correct;
-    box.className = "game-feedback small text-danger";
-  }
-  if (result.correct) postXP();
-}
+  const updateWord = (data) => {
+    if (!data || !data.word) return;
+    if (wordBox) wordBox.textContent = data.word;
+    const hiddenId = document.querySelector('input[name="word_id"]');
+    if (hiddenId) hiddenId.value = data.id;
+    feedback && (feedback.textContent = "");
+    const answerInput = document.querySelector('.vocab-form input[name="answer"]');
+    if (answerInput) answerInput.value = "";
+    const optionsBox = document.getElementById("mc-options");
+    if (optionsBox && data.options) {
+      optionsBox.innerHTML = "";
+      data.options.forEach((opt) => {
+        const btn = document.createElement("button");
+        btn.className = "btn btn-outline-dark";
+        btn.textContent = opt;
+        btn.dataset.option = opt;
+        optionsBox.appendChild(btn);
+      });
+    }
+  };
 
-async function startWriteGame() {
-  const box = document.getElementById("write-feedback");
-  box.textContent = "Загружаю слово...";
-  const res = await fetch("/vocabulary/game/write?format=json", { credentials: "include" });
-  const data = await res.json();
-  const word = data.word;
-  if (!word || !word.id) {
-    box.textContent = "Нет слов для игры.";
-    return;
-  }
-  const answer = prompt(`${word.word}\nВведите перевод:`);
-  if (answer === null) return;
-  const form = new FormData();
-  form.append("word_id", word.id);
-  form.append("answer", answer);
-  const check = await fetch("/vocabulary/game/write/check", { method: "POST", body: form, credentials: "include" });
-  const result = await check.json();
-  if (result.correct) {
-    box.textContent = "✔ Отлично";
-    box.className = "game-feedback small text-success";
-  } else {
-    const correct = result.correct_answer ? `Правильно: ${result.correct_answer}` : "Неверно";
-    const hint = result.hint ? ` · ${result.hint}` : "";
-    box.textContent = correct + hint;
-    box.className = "game-feedback small text-danger";
-  }
-  if (result.correct) postXP();
-}
+  const fetchNext = async () => {
+    if (!mode) return;
+    const res = await fetch(`/vocabulary/game/${mode}?format=json`, { credentials: "include" });
+    const data = await res.json();
+    if (!data.word || !data.word.id) {
+      showFeedback("Нет слов для игры. Добавьте их в словарь.", false);
+      return;
+    }
+    data.word.options = data.options;
+    updateWord({ ...data.word, options: data.options });
+  };
 
-function startRepeatGameManual(word) {
-  if (word) {
-    const utter = new SpeechSynthesisUtterance(word);
-    speechSynthesis.speak(utter);
-  }
-}
+  playBtn?.addEventListener("click", async () => {
+    const current = document.querySelector(".vocab-word")?.textContent;
+    if (!current) return;
+    try {
+      const res = await fetch(`/tts?word=${encodeURIComponent(current)}`, { credentials: "include" });
+      const data = await res.json();
+      if (data?.url) {
+        new Audio(data.url).play().catch(() => {});
+      }
+    } catch (e) {
+      // noop
+    }
+  });
 
-function submitGameAnswer() {
-  // Placeholder hook to align with prompt; logic handled per-game above.
-}
+  nextBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    fetchNext();
+  });
+
+  // repeat mode
+  const repeatForm = document.getElementById("repeat-form");
+  repeatForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(repeatForm);
+    const res = await fetch("/vocabulary/game/repeat/check", { method: "POST", body: fd, credentials: "include" });
+    const result = await res.json();
+    if (result.correct) {
+      showFeedback("✔ Правильно", true);
+      postXP();
+      setTimeout(fetchNext, 700);
+    } else {
+      const hint = result.correct_answer ? `Правильно: ${result.correct_answer}` : result.hint || "Неверно";
+      showFeedback(hint, false);
+    }
+  });
+
+  // mc mode
+  const mcBox = document.getElementById("mc-options");
+  mcBox?.addEventListener("click", async (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement) || !target.dataset.option) return;
+    e.preventDefault();
+    const hiddenId = document.querySelector('input[name="word_id"]');
+    const fd = new FormData();
+    fd.append("word_id", hiddenId?.value || "");
+    fd.append("selected", target.dataset.option);
+    const res = await fetch("/vocabulary/game/mc/check", { method: "POST", body: fd, credentials: "include" });
+    const result = await res.json();
+    if (result.correct) {
+      showFeedback("✔ Верно", true);
+      postXP();
+      setTimeout(fetchNext, 700);
+    } else {
+      const correct = result.correct_answer ? `Правильно: ${result.correct_answer}` : "Неверно";
+      showFeedback(correct, false);
+    }
+  });
+
+  // write mode
+  const writeForm = document.getElementById("write-form");
+  writeForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(writeForm);
+    const res = await fetch("/vocabulary/game/write/check", { method: "POST", body: fd, credentials: "include" });
+    const result = await res.json();
+    if (result.correct) {
+      showFeedback("✔ Отлично", true);
+      postXP();
+      setTimeout(fetchNext, 700);
+    } else {
+      const correct = result.correct_answer ? `Правильно: ${result.correct_answer}` : "Неверно";
+      const hint = result.hint ? ` · ${result.hint}` : "";
+      showFeedback(correct + hint, false);
+    }
+  });
+
+  async function postXP(amount = 1) {
+    try {
+      await fetch("/xp/add", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ xp: amount, reason: "vocabulary_game" }),
+      });
+    } catch (e) {
+      // optional endpoint
+    }
+  }
+})();

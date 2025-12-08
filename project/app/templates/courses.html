@@ -29,10 +29,19 @@
                 </div>
                 <h4 class="fw-bold mb-2">{{ course.name }}</h4>
                 <p class="text-muted flex-grow-1">{{ course.description }}</p>
-                <div class="progress progress-slim mb-2"><div class="progress-bar" style="width: 18%;"></div></div>
-                <div class="small text-muted mb-3">Пример прогресса · 18%</div>
+                {% set progress_info = course_progress.get(course.id) if course_progress is defined else None %}
+                {% if progress_info %}
+                <div class="progress progress-slim mb-1">
+                    <div class="progress-bar" style="width: {{ progress_info.percent }}%;"></div>
+                </div>
+                <div class="small text-muted mb-3">{{ progress_info.percent }}% по курсу</div>
+                {% endif %}
                 <div class="d-grid gap-2">
-                    <a class="btn btn-dark w-100" href="/course/{{ course.slug }}">Перейти</a>
+                    {% if progress_info and progress_info.next_lesson %}
+                        <a class="btn btn-dark w-100" href="/lesson/{{ progress_info.next_lesson.id }}">Продолжить урок</a>
+                    {% else %}
+                        <a class="btn btn-dark w-100" href="/course/{{ course.slug }}">Начать</a>
+                    {% endif %}
                     <a class="btn btn-outline-dark w-100" href="/placement-test">Определить уровень</a>
                 </div>
             </div>

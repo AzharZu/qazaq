@@ -32,6 +32,20 @@
                 <div class="small text-muted">{{ module_progress|round(0, 'floor')|int }}%</div>
             </div>
         </div>
+        {% set next_in_module = None %}
+        {% for lesson in module.lessons %}
+            {% if progress_map.get(lesson.id) != 'done' and next_in_module is none %}
+                {% set next_in_module = lesson %}
+            {% endif %}
+        {% endfor %}
+        <div class="d-flex gap-2 flex-wrap mt-3">
+            {% if module.lessons %}
+            <a class="btn btn-primary" href="{{ '/lesson/' ~ (next_in_module.id if next_in_module else module.lessons[0].id) }}">
+                {% if next_in_module %}Продолжить урок{% else %}Повторить модуль{% endif %}
+            </a>
+            {% endif %}
+            <a class="btn btn-outline-dark" href="/course/{{ course.slug }}">К курсу</a>
+        </div>
     </div>
 
     <h4 class="fw-bold mb-3">Уроки модуля</h4>

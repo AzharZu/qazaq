@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session, selectinload
 
@@ -18,6 +18,7 @@ async def lesson_page(
     request: Request,
     db: Session = Depends(get_db),
     view: str = Query("theory"),
+    word_index: int = Query(0),
     user: models.User = Depends(get_current_user),
 ):
     lesson = (
@@ -79,7 +80,13 @@ async def lesson_page(
         "theory": "lesson_page_theory.html",
         "flashcards": "lesson_page_flashcards.html",
         "tasks": "lesson_page_tasks.html",
+        "words": "lesson_word_practice.html",
     }.get(view, "lesson_page_theory.html")
+
+    word_list = lesson.flashcards or []
+    safe_index = max(0, min(word_index, len(word_list) - 1)) if word_list else 0
+    selected_word = word_list[safe_index] if word_list else None
+    word_progress = int(((safe_index) / len(word_list)) * 100) if word_list else 0
 
     response = render_template(
         request,
@@ -91,6 +98,10 @@ async def lesson_page(
             "module_progress": module_progress,
             "lesson_progress": lesson_progress_value,
             "progress_map": progress_map,
+            "word": selected_word,
+            "word_index": safe_index,
+            "word_total": len(word_list),
+            "word_progress": word_progress,
         },
     )
     # add flashcards to dictionary if authenticated
@@ -146,3 +157,20 @@ async def complete_lesson(
             redirect_url = f"/course/{lesson.module.course.slug}"
 
     return RedirectResponse(redirect_url, status_code=302)
+
+
+@router.post("/lesson/{lesson_id}/word-progress")
+async def save_word_progress(
+    lesson_id: int,
+    request: Request,
+    word_index: int = Form(...),
+    status: str = Form("in_progress"),
+    user: models.User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    # basic session-level tracking to avoid schema changes
+    key = "word_progress"
+    data = request.session.get(key) or {}
+    data[str(lesson_id)] = {"word_index": word_index, "status": status, "user_id": user.id}
+    request.session[key] = data
+    return {"ok": True}

@@ -6,7 +6,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import get_settings
 from . import routers  # noqa: F401
-from .routers import admin as admin_router
+from .routers import admin_spa
 from .sessions import get_current_user_from_request
 
 settings = get_settings()
@@ -29,6 +29,11 @@ app.mount(
     StaticFiles(directory=str(BASE_DIR / "static")),
     name="static",
 )
+app.mount(
+    "/admin/assets",
+    admin_spa.assets_app,
+    name="admin-spa-assets",
+)
 
 app.include_router(routers.auth.router)
 app.include_router(routers.autochecker.router)
@@ -38,7 +43,8 @@ app.include_router(routers.modules.router)
 app.include_router(routers.lessons.router)
 app.include_router(routers.users.router)
 app.include_router(routers.dictionary.router)
-app.include_router(admin_router.router, prefix="/admin", tags=["admin"])
+app.include_router(routers.lesson_editor_api.router)
+app.include_router(routers.admin_spa.router)
 
 
 @app.middleware("http")

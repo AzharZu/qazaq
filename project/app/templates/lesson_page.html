@@ -77,18 +77,19 @@
             <span class="status-badge info">Multiple-choice</span>
         </div>
         {% for quiz in lesson.quizzes if not selected_ids or quiz.id in selected_ids %}
-        <div class="mb-3">
+        <div class="mb-3 quiz-card" data-correct="{{ quiz.correct_option }}">
             <div class="fw-semibold mb-2">{{ quiz.question }}</div>
-            <div class="vstack gap-2">
+            <div class="vstack gap-2 quiz-options">
                 {% for opt in quiz.options %}
                 <label class="quiz-option">
-                    <input type="radio" disabled>
+                    <input type="radio" name="quiz-{{ quiz.id }}" value="{{ loop.index0 }}">
                     <span>{{ opt }}</span>
-                    {% if loop.index0 == quiz.correct_option %}
-                    <span class="status-badge success ms-auto">верный</span>
-                    {% endif %}
                 </label>
                 {% endfor %}
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+                <button class="btn btn-outline-dark btn-sm quiz-check">Проверить</button>
+                <div class="small text-muted quiz-feedback"></div>
             </div>
             {% if quiz.explanation %}<div class="text-muted small mt-2">{{ quiz.explanation }}</div>{% endif %}
         </div>
@@ -174,6 +175,11 @@
         <div class="block-label mb-2">Изображение</div>
         <img src="{{ block.content.url }}" class="w-100 rounded-3" alt="image block">
     </div>
+    {% else %}
+    <div class="lesson-block">
+        <div class="block-label mb-2">Блок {{ block.block_type }}</div>
+        <pre class="mb-0 small text-muted">{{ block.content | tojson }}</pre>
+    </div>
     {% endif %}
 {% endfor %}
 </div>
@@ -191,4 +197,26 @@
     </div>
 {% endif %}
 <script src="{{ url_for('static', path='js/lesson.js') }}"></script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll(".quiz-card").forEach((card) => {
+        const correctIndex = Number(card.dataset.correct);
+        const feedback = card.querySelector(".quiz-feedback");
+        card.querySelector(".quiz-check")?.addEventListener("click", (e) => {
+            e.preventDefault();
+            const checked = card.querySelector("input[type='radio']:checked");
+            if (!checked) {
+                if (feedback) feedback.textContent = "Выберите вариант";
+                return;
+            }
+            const selected = Number(checked.value);
+            const ok = selected === correctIndex;
+            if (feedback) {
+                feedback.textContent = ok ? "Верно" : "Неверно, попробуйте ещё раз";
+                feedback.className = `small quiz-feedback ${ok ? "text-success" : "text-danger"}`;
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

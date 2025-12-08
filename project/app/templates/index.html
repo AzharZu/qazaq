@@ -9,8 +9,13 @@
                 <p class="lead-text mb-0">Курсы, карточки, мини-игры и AutoChecker в одном минималистичном интерфейсе.</p>
             </div>
             <div class="d-flex flex-wrap gap-2">
-                <a href="/placement-test" class="btn btn-primary">Пройти placement-тест</a>
+                {% if home_progress.next_lesson %}
+                <a href="/lesson/{{ home_progress.next_lesson.id }}" class="btn btn-primary">Продолжить урок</a>
+                <a href="/courses" class="btn btn-outline-dark">К каталогу</a>
+                {% else %}
+                <a href="/placement-test" class="btn btn-primary">Пройти тест уровня</a>
                 <a href="/signup" class="btn btn-dark">Начать бесплатно</a>
+                {% endif %}
             </div>
             <div class="d-flex flex-wrap gap-2">
                 <div class="stat-tile">
@@ -26,7 +31,7 @@
         <div class="d-flex flex-column gap-3">
             {% if recommended %}
             <div class="card-soft h-100">
-                <div class="eyebrow">Рекомендовано по тесту</div>
+                <div class="eyebrow">Рекомендовано</div>
                 <h4 class="fw-bold mb-1">{{ recommended.name }}</h4>
                 <p class="text-muted mb-2">{{ recommended.description }}</p>
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -34,8 +39,18 @@
                         {% set audience_map = {'kids': 'Для детей и школьников', 'adult': 'Для взрослых', 'gov': 'Для госслужащих'} %}
                         {{ audience_map.get(recommended.audience, recommended.audience) }}
                     </span>
-                    <a class="btn btn-primary" href="/course/{{ recommended.slug }}">Перейти к курсу</a>
+                    {% if home_progress.next_lesson %}
+                        <a class="btn btn-primary" href="/lesson/{{ home_progress.next_lesson.id }}">Продолжить урок</a>
+                    {% else %}
+                        <a class="btn btn-primary" href="/course/{{ recommended.slug }}">Перейти к курсу</a>
+                    {% endif %}
                 </div>
+                {% if home_progress.percent %}
+                <div class="progress progress-slim mt-3">
+                    <div class="progress-bar" style="width: {{ home_progress.percent }}%;"></div>
+                </div>
+                <div class="small text-muted mt-1">{{ home_progress.percent }}% по курсу</div>
+                {% endif %}
             </div>
             {% else %}
             <div class="card-soft h-100">

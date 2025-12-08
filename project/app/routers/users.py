@@ -31,14 +31,9 @@ async def read_current_user(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/profile")
 async def profile_page(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    progress = get_progress_for_user(db, user.id)
-    course = (
-        db.query(models.Course)
-        .filter(models.Course.name == progress["course_title"])
-        .first()
-        if progress.get("course_title")
-        else None
-    )
+    selected_slug = request.session.get("course_slug")
+    progress = get_progress_for_user(db, user.id, selected_slug)
+    course = db.get(models.Course, progress.get("course_id")) if progress.get("course_id") else None
     grouped_dict = get_user_dictionary_grouped(user.id, db)
     vocab_stats = get_stats(user.id, db)
     word_of_week = ensure_word_of_week(db)
@@ -73,14 +68,9 @@ async def settings_page(request: Request, user: models.User = Depends(get_curren
 
 @router.get("/progress")
 async def progress_page(request: Request, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    progress = get_progress_for_user(db, user.id)
-    course = (
-        db.query(models.Course)
-        .filter(models.Course.name == progress["course_title"])
-        .first()
-        if progress.get("course_title")
-        else None
-    )
+    selected_slug = request.session.get("course_slug")
+    progress = get_progress_for_user(db, user.id, selected_slug)
+    course = db.get(models.Course, progress.get("course_id")) if progress.get("course_id") else None
     return render_template(
         request,
         "dashboard.html",
