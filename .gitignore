@@ -1,0 +1,8 @@
+node_modules
+project/node_modules
+project/admin-spa/node_modules
+project/admin-spa/dist
+*.log
+*.pyc
+__pycache__
+.DS_Store
