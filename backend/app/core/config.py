@@ -22,7 +22,9 @@ class Settings(BaseSettings):
     upload_root: str | None = None
     cdn_base_url: str | None = None
     session_cookie: str = "session"
-    admin_emails: list[str] = Field(default_factory=list)
+    admin_emails_raw: str | None = Field(default=None, alias="ADMIN_EMAILS")
+    # Parsed list; alias set to avoid env auto-binding
+    admin_emails: list[str] = Field(default_factory=list, alias="ADMIN_EMAILS_PARSED")
 
     class Config:
         # Use absolute path to the backend/.env to avoid issues when the working
@@ -52,9 +54,8 @@ class Settings(BaseSettings):
             return [str(v) for v in value]
         return []
 
-    @field_validator("admin_emails", mode="before")
-    @classmethod
-    def _parse_admin_emails(cls, value: Any) -> list[str]:
+    @staticmethod
+    def _parse_admin_emails(value: Any) -> list[str]:
         if value is None or value == "":
             return []
         if isinstance(value, str):
@@ -105,28 +106,17 @@ def _normalize_cdn_base(value: str | None) -> str:
 def get_settings() -> Settings:
     project_root = Path(__file__).resolve().parents[3]
     settings = Settings()
+    settings.admin_emails = Settings._parse_admin_emails(settings.admin_emails_raw)
     original_url, sync_url = _normalize_db_url(settings.database_url)
     settings.database_url = original_url
     settings.database_sync_url = sync_url
     settings.upload_root = _normalize_upload_root(settings.upload_root, project_root)
     settings.cdn_base_url = _normalize_cdn_base(settings.cdn_base_url)
+    default_origins = {"http://localhost:3002", "http://127.0.0.1:3002"}
     if not settings.allowed_origins:
-        settings.allowed_origins = [
-            "http://localhost",
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-            "http://localhost:5174",
-            "http://127.0.0.1:5174",
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://localhost:3001",
-            "http://127.0.0.1:3001",
-            "http://localhost:4173",
-            "http://127.0.0.1:4173",
-            "http://localhost:8000",
-            "http://127.0.0.1:8000",
-        ]
-    if not settings.allowed_origin_regex:
-        # Wide dev default so new preview ports do not break CORS; override via env if needed.
-        settings.allowed_origin_regex = r".*"
+        settings.allowed_origins = list(default_origins)
+    else:
+        settings.allowed_origins = list({*settings.allowed_origins, *default_origins})
+    # Explicitly avoid regex-based wildcards to keep prod CORS tight.
+    settings.allowed_origin_regex = None
     return settings

@@ -1,0 +1,71 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: qazaq_postgres
+    environment:
+      POSTGRES_USER: qazaq_user
+      POSTGRES_PASSWORD: qazaq_pass
+      POSTGRES_DB: qazaq_db
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qazaq_user -d qazaq_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - qazaq_network
+
+  backend:
+    build:
+      context: ./backend
+    container_name: qazaq_backend
+    env_file:
+      - ./backend/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://qazaq_user:qazaq_pass@postgres:5432/qazaq_db"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: qazaq_user
+      DB_NAME: qazaq_db
+      ADMIN_EMAILS: "admin@example.com"
+      ALLOWED_ORIGINS: '["http://localhost:3002","http://127.0.0.1:3002"]'
+    ports:
+      - "8000:8000"
+    volumes:
+      - uploads:/app/uploads
+    command: ["bash", "start.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8000/docs >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - qazaq_network
+
+  admin_frontend:
+    build:
+      context: ./admin-spa   # ⚠️ Папка где лежит твой Dockerfile для фронта
+    container_name: qazaq_admin
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3001:80"   # localhost:3001 -> Nginx (avoid clash with student app)
+    volumes:
+      - uploads:/uploads:ro
+    networks:
+      - qazaq_network
+
+volumes:
+  postgres_data:
+  uploads:
+
+networks:
+  qazaq_network:
+    driver: bridge

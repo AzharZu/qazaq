@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply min-h-screen bg-night text-ink antialiased;
+}
+
+a {
+  @apply text-ink underline-offset-4 transition hover:text-white;
+}
+
+::selection {
+  background: #2a3b56;
+  color: #f5d57a;
+}
+
+.card-surface {
+  @apply rounded-xl border border-slate/30 bg-panel text-ink shadow-card;
+}
+
+.panel {
+  @apply rounded-lg bg-slate/40 text-ink;
+}
