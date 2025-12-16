@@ -1,5 +1,6 @@
 fastapi
 uvicorn[standard]
+itsdangerous
 sqlalchemy
 sqlalchemy[asyncio]
 alembic
