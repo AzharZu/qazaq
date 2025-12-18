@@ -29,7 +29,7 @@ export default function LessonPage() {
   const [newWordsAdded, setNewWordsAdded] = useState<number>(0);
   const [resultScore, setResultScore] = useState<{ score: number; total: number; reason: string } | null>(null);
 
-  const { blocks, currentIndex, completedBlockIds, setLesson, markBlockComplete, saveProgress, reset, goToBlock } = useProgressStore();
+  const { blocks, currentIndex, completedBlockIds, setLesson, markBlockComplete, markAllComplete, saveProgress, reset, goToBlock } = useProgressStore();
   const previewMode = preview === "1";
   const stubModeActive = MOCK_CHECKS_ENABLED;
   const [backendCompleted, setBackendCompleted] = useState(false);
@@ -79,7 +79,8 @@ export default function LessonPage() {
     load();
     return () => reset();
   }, [id, previewMode, reset, setLesson, normalizeType]);
-  const currentBlock = useMemo(() => blocks[currentIndex], [blocks, currentIndex]);
+  const safeCurrentIndex = Number.isFinite(currentIndex) ? currentIndex : 0;
+  const currentBlock = useMemo(() => blocks[safeCurrentIndex], [blocks, safeCurrentIndex]);
   const stepTargets = useMemo(
     () =>
       STEP_DEFS.map((def) =>
@@ -129,6 +130,12 @@ export default function LessonPage() {
   const displayProgress = isLessonCompleted ? 100 : blockProgress;
 
   useEffect(() => {
+    if (isLessonCompleted && totalSteps && completedSteps < totalSteps) {
+      markAllComplete(uniqueBlockIds);
+    }
+  }, [isLessonCompleted, totalSteps, completedSteps, uniqueBlockIds, markAllComplete]);
+
+  useEffect(() => {
     console.debug("[LessonProgress]", {
       total_steps: totalSteps,
       completed_steps: completedSteps,
@@ -151,7 +158,9 @@ export default function LessonPage() {
     const stubScore = computeStubLessonScore(hasPronunciationBlock);
     setResultScore(stubScore);
     if (previewMode) {
+      setBackendCompleted(true);
       setCompleted(true);
+      markAllComplete(uniqueBlockIds);
       return;
     }
     try {
@@ -161,24 +170,27 @@ export default function LessonPage() {
     } catch (_err) {
       await saveProgress({ status: "done", score: stubScore.score }).catch(() => {});
     } finally {
+      setBackendCompleted(true);
       setCompleted(true);
+      markAllComplete(uniqueBlockIds);
     }
   };
 
   const handleCompleteBlock = async (nextIndexOverride?: number) => {
     if (!blocks.length) return;
-    const currentBlock = blocks[currentIndex];
-    const blockId = resolveBlockId(currentBlock, currentIndex);
+    const localIndex = Number.isFinite(currentIndex) ? currentIndex : 0;
+    const currentBlock = blocks[localIndex];
+    const blockId = resolveBlockId(currentBlock, localIndex);
     const apiBlockId = currentBlock?.id;
     if (!previewMode) {
       await saveProgress({
-        status: currentIndex >= blocks.length - 1 ? "done" : "in_progress",
+        status: localIndex >= blocks.length - 1 ? "done" : "in_progress",
         block_id: apiBlockId,
-        score: currentIndex >= blocks.length - 1 ? computeStubLessonScore(hasPronunciationBlock).score : undefined,
+        score: localIndex >= blocks.length - 1 ? computeStubLessonScore(hasPronunciationBlock).score : undefined,
       });
     }
     markBlockComplete(blockId, nextIndexOverride);
-    if (currentIndex >= blocks.length - 1) {
+    if (localIndex >= blocks.length - 1) {
       await finishLesson();
     }
   };
@@ -194,7 +206,8 @@ export default function LessonPage() {
   const goToStep = useCallback(
     async (key: StepKey, opts?: { completeCurrent?: boolean }) => {
       const targetIndex = findStepIndex(key);
-      const fallbackIndex = targetIndex >= 0 ? targetIndex : Math.min(currentIndex + 1, Math.max(blocks.length - 1, 0));
+      const baseIndex = Number.isFinite(currentIndex) ? currentIndex : 0;
+      const fallbackIndex = targetIndex >= 0 ? targetIndex : Math.min(baseIndex + 1, Math.max(blocks.length - 1, 0));
       if (fallbackIndex < 0 || !blocks.length) return;
       if (opts?.completeCurrent) {
         await handleCompleteBlock(fallbackIndex);

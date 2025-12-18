@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import ProgressBar from "@/components/ProgressBar";
+import TelegramCta from "@/components/TelegramCta";
 import client from "@/lib/api/client";
 import { ProgressResponse } from "@/types/progress";
 
@@ -72,6 +73,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      <TelegramCta />
 
       <section className="space-y-5">
         <h2 className="text-2xl font-semibold text-white">Продолжайте обучение</h2>

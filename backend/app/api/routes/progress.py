@@ -1,7 +1,9 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import inspect
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import ProgrammingError
 
 from ...api import deps
 from ...db import models
@@ -9,6 +11,25 @@ from ...schemas.progress import ProgressPayload
 from ...services.progress_service import get_progress_for_user
 
 router = APIRouter(prefix="/api/progress", tags=["progress"])
+
+_progress_tables_checked = False
+
+
+def _ensure_progress_tables(db: Session) -> None:
+    global _progress_tables_checked
+    if _progress_tables_checked:
+        return
+    bind = db.get_bind()
+    inspector = inspect(bind)
+    existing = set(inspector.get_table_names())
+    tables_to_create = []
+    if models.DailyGoal.__tablename__ not in existing:
+        tables_to_create.append(models.DailyGoal.__table__)
+    if models.UserStats.__tablename__ not in existing:
+        tables_to_create.append(models.UserStats.__table__)
+    for table in tables_to_create:
+        table.create(bind=bind, checkfirst=True)
+    _progress_tables_checked = True
 
 
 @router.get("", response_model=ProgressPayload)
@@ -33,21 +54,43 @@ def user_progress(request: Request, db: Session = Depends(deps.current_db)):
             streak_days=0,
             goal_today={},
         )
+    try:
+        _ensure_progress_tables(db)
+    except Exception:
+        db.rollback()
     selected_slug = request.session.get("course_slug")
     progress = get_progress_for_user(db, user.id, selected_slug)
-    stats = (
-        db.query(models.UserStats)
-        .filter(models.UserStats.user_id == user.id)
-        .first()
-        or models.UserStats(user_id=user.id, xp_total=0, xp_today=0, streak_days=0)
-    )
-    goal = (
-        db.query(models.DailyGoal)
-        .filter(models.DailyGoal.user_id == user.id)
-        .order_by(models.DailyGoal.id.desc())
-        .first()
-        or models.DailyGoal(user_id=user.id, goal_type="light", target_value=10, completed_today=False)
-    )
+    try:
+        stats = (
+            db.query(models.UserStats)
+            .filter(models.UserStats.user_id == user.id)
+            .first()
+            or models.UserStats(user_id=user.id, xp_total=0, xp_today=0, streak_days=0)
+        )
+        goal = (
+            db.query(models.DailyGoal)
+            .filter(models.DailyGoal.user_id == user.id)
+            .order_by(models.DailyGoal.id.desc())
+            .first()
+            or models.DailyGoal(user_id=user.id, goal_type="light", target_value=10, completed_today=False)
+        )
+    except ProgrammingError:
+        # If migrations were not applied yet, create the missing tables on the fly.
+        db.rollback()
+        _ensure_progress_tables(db)
+        stats = (
+            db.query(models.UserStats)
+            .filter(models.UserStats.user_id == user.id)
+            .first()
+            or models.UserStats(user_id=user.id, xp_total=0, xp_today=0, streak_days=0)
+        )
+        goal = (
+            db.query(models.DailyGoal)
+            .filter(models.DailyGoal.user_id == user.id)
+            .order_by(models.DailyGoal.id.desc())
+            .first()
+            or models.DailyGoal(user_id=user.id, goal_type="light", target_value=10, completed_today=False)
+        )
     progress["xp_total"] = stats.xp_total or 0
     progress["xp_today"] = stats.xp_today or 0
     progress["streak_days"] = stats.streak_days or 0
@@ -269,7 +312,8 @@ def block_finished(payload: dict, request: Request, db: Session = Depends(deps.c
 
     details = progress_row.details or {}
     blocks = details.get("blocks") or {}
-    blocks[str(block_id)] = {
+    normalized_block_id = str(block_id)
+    blocks[normalized_block_id] = {
         "status": status_payload,
         "finished_at": datetime.utcnow().isoformat(),
     }
@@ -287,7 +331,10 @@ def block_finished(payload: dict, request: Request, db: Session = Depends(deps.c
         up = models.UserProgress(user_id=user.id, lesson_id=lesson_id, status="in_progress", last_opened_at=datetime.utcnow(), time_spent=0)
     else:
         up.last_opened_at = datetime.utcnow()
-    if len(blocks) >= len([b for b in lesson.blocks if not getattr(b, "is_deleted", False)]):
+    lesson_block_ids = [str(b.id) for b in lesson.blocks if not getattr(b, "is_deleted", False)]
+    total_unique_blocks = len(set(lesson_block_ids))
+    completed_known_blocks = len({bid for bid in blocks.keys() if bid in lesson_block_ids})
+    if total_unique_blocks > 0 and completed_known_blocks >= total_unique_blocks:
         up.status = "done"
         progress_row.completed = True
     db.add(progress_row)

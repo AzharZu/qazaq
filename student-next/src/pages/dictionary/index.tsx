@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import TelegramCta from "@/components/TelegramCta";
 import { playDictionaryAudio, useDictionaryWords } from "@/lib/useDictionaryWords";
 
 export default function DictionaryPage() {
@@ -47,6 +48,8 @@ export default function DictionaryPage() {
         <h1 className="text-3xl font-bold md:text-4xl">Интерактивный словарь</h1>
         <p className="text-sm text-ink/70 text-slate-200">Повторяйте слова, слушайте произношение и закрепляйте лексику через мини-упражнения.</p>
       </div>
+
+      <TelegramCta className="mx-auto max-w-5xl" />
 
       <div className="mx-auto flex max-w-5xl flex-col items-center gap-4 rounded-3xl bg-slate-800 px-6 py-8 shadow-2xl md:px-10 md:py-10">
         {loading ? (

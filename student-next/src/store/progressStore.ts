@@ -14,12 +14,17 @@ type ProgressState = {
 type ProgressActions = {
   setLesson: (lessonId: number, blocks: LessonBlock[]) => void;
   markBlockComplete: (blockId?: number | string, nextIndexOverride?: number) => void;
+  markAllComplete: (blockIds: (number | string)[]) => void;
   goToBlock: (index: number) => void;
   saveProgress: (payload?: { status?: string; score?: number; answers?: Record<string, any>; block_id?: number | string }) => Promise<void>;
   reset: () => void;
 };
 
-const clampIndex = (index: number, total: number) => Math.max(0, Math.min(index, Math.max(total - 1, 0)));
+const coerceIndex = (value: number | undefined | null) => (Number.isFinite(value) ? Number(value) : 0);
+const clampIndex = (index: number, total: number) => {
+  const safeIndex = coerceIndex(index);
+  return Math.max(0, Math.min(safeIndex, Math.max(total - 1, 0)));
+};
 const normalizeBlockId = (blockId: number | string | undefined, fallbackIndex: number) =>
   (blockId ?? `idx-${fallbackIndex}`).toString();
 
@@ -49,6 +54,12 @@ export const useProgressStore = create<ProgressState & ProgressActions>((set, ge
     idsSet.add(resolvedId);
     const nextIndex = nextIndexOverride !== undefined ? clampIndex(nextIndexOverride, blocks.length) : clampIndex(currentIndex + 1, blocks.length);
     set({ currentIndex: nextIndex, completedBlockIds: Array.from(idsSet) });
+  },
+
+  markAllComplete: (blockIds) => {
+    const unique = Array.from(new Set(blockIds.map((id) => id.toString())));
+    const nextIndex = clampIndex(unique.length - 1, get().blocks.length);
+    set({ completedBlockIds: unique, currentIndex: nextIndex });
   },
 
   goToBlock: (index) => {

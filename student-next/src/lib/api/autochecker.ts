@@ -1,4 +1,4 @@
-import { mockFreeWritingCheck } from "@/lib/mockAssessments";
+import client from "@/lib/api/client";
 
 export type AutoCheckerMistake = {
   fragment: string;
@@ -83,71 +83,25 @@ export type TextCheckResponse = {
   details?: any;
 };
 
-const normalizeNumber = (value: unknown) => {
-  const parsed = typeof value === "number" ? value : Number.parseFloat(`${value ?? 0}`);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const normalizeArray = (value: unknown) => {
-  if (Array.isArray(value)) return value;
-  if (!value) return [];
-  return [value];
-};
-
 export const autocheckerApi = {
-  async check(text: string): Promise<AutoCheckerHtmlResponse> {
-    // Stub perfect response without network
-    return {
-      ai_used: false,
-      model: "stub",
-      overall_score: 100,
-      categories: {
-        grammar: 100,
-        vocabulary: 100,
-        word_order: 100,
-        clarity: 100,
-      },
-      mistakes: [],
-      mentor_feedback: "Текст принят. Грамматика в норме.",
-      improved_version: text,
-      recommendations: [],
-    };
-  },
-
   async ping() {
-    return { status: "ok (stub)" };
+    const { data } = await client.get("/autochecker/ping");
+    return data;
   },
 
   async health() {
-    return { ok: true, provider: "stub", key_present: true, request_id: "stub" };
+    const { data } = await client.get("/autochecker/health");
+    return data;
   },
 
   async checkFreeWriting(payload: FreeWritingRequest): Promise<FreeWritingResponse> {
-    // Always return stubbed success; backend is bypassed for demo stability
-    return mockFreeWritingCheck();
+    const { data } = await client.post("/autochecker/free-writing/check", payload);
+    return data as FreeWritingResponse;
   },
 
   async textCheck(payload: TextCheckRequest): Promise<TextCheckResponse> {
-    // Stubbed response: accept everything with perfect score
-    return {
-      ok: true,
-      request_id: "stub",
-      language: payload.language,
-      level: "excellent",
-      scores: {
-        grammar: 100,
-        lexicon: 100,
-        spelling: 100,
-        punctuation: 100,
-        overall: 100,
-      },
-      before_text: payload.text,
-      after_text: payload.text,
-      highlighted_html: payload.text,
-      issues: [],
-      recommendations: [],
-      suggested_text: payload.text,
-    };
+    const { data } = await client.post("/autochecker/text-check", payload);
+    return data as TextCheckResponse;
   },
 };
 
