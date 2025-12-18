@@ -4,9 +4,11 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import Flashcard from "./Flashcard";
 import PronunciationRecorder from "./PronunciationRecorder";
+import VideoPlayer from "./lesson/VideoPlayer";
 import audioTaskApi from "@/lib/api/audioTask";
+import { autocheckerApi, FreeWritingResponse } from "@/lib/api/autochecker";
 import { LessonBlock, TheoryContent, FlashcardsContent, PronunciationContent, TasksContent } from "@/types/lesson";
-import LessonTestBlock from "./lesson/LessonTestBlock";
+import { resolveMediaUrl } from "@/lib/media";
 
 type Props = {
   block: LessonBlock;
@@ -14,11 +16,31 @@ type Props = {
   onComplete: () => void;
   preview?: boolean;
   onGoToStep?: (step: "theory" | "flashcards" | "pronunciation" | "tasks") => void;
+  lessonLanguage?: string;
 };
 
 type ValidationResult<T> = { valid: true; value: T } | { valid: false; value: T };
 
 const safeString = (value: any, fallback = ""): string => (typeof value === "string" ? value : fallback);
+const resolveAudioSrc = (source: any): string => resolveMediaUrl(source?.audio_path || source?.audio_url || source?.url);
+
+function AudioPlayer({ src }: { src: string }) {
+  const [error, setError] = useState<string | null>(null);
+  if (!src) return null;
+  return (
+    <div className="space-y-2">
+      <audio
+        controls
+        src={src}
+        className="w-full"
+        onError={() => setError("Не удалось загрузить аудио. Проверьте ссылку или попробуйте позже.")}
+      >
+        Ваш браузер не поддерживает аудио.
+      </audio>
+      {error ? <div className="text-xs text-red-400">{error}</div> : null}
+    </div>
+  );
+}
 
 function validateTheory(raw: any): ValidationResult<TheoryContent> {
   const value: TheoryContent = {
@@ -41,7 +63,8 @@ function validateFlashcards(raw: any): ValidationResult<FlashcardsContent> {
         translation: safeString(c?.translation || c?.back),
         example_sentence: safeString(c?.example_sentence || c?.example),
         image_url: safeString(c?.image_url || c?.image || undefined, undefined),
-        audio_url: safeString(c?.audio_url || undefined, undefined),
+        audio_path: safeString(c?.audio_path || c?.audio_url || ""),
+        audio_url: safeString(c?.audio_url || c?.audio_path || ""),
       }))
     : [];
   return { valid: cards.length > 0, value: { cards } };
@@ -55,7 +78,8 @@ function validatePronunciation(raw: any): ValidationResult<PronunciationContent>
         translation: safeString(c?.translation || c?.back),
         example: safeString(c?.example || c?.example_sentence),
         image_url: safeString(c?.image_url || c?.image || undefined, undefined),
-        audio_url: safeString(c?.audio_url || undefined, undefined),
+        audio_path: safeString(c?.audio_path || c?.audio_url || ""),
+        audio_url: safeString(c?.audio_url || c?.audio_path || ""),
       }))
     : [];
   return { valid: items.length > 0, value: { items, sample_audio_url: safeString(raw?.sample_audio_url) } };
@@ -68,14 +92,15 @@ function validateTasks(raw: any): ValidationResult<TasksContent> {
         question: safeString(q?.question, "Задание"),
         type: (safeString(q?.type, "single") as TasksContent["questions"][number]["type"]),
         options: Array.isArray(q?.options) ? q.options.map((o: any) => safeString(o)) : [],
-        audio_url: safeString(q?.audio_url),
+        audio_path: safeString(q?.audio_path || q?.audio_url),
+        audio_url: safeString(q?.audio_url || q?.audio_path),
         placeholder: safeString(q?.placeholder),
       }))
     : [];
   return { valid: questions.length > 0, value: { questions } };
 }
 
-export default function LessonBlockRenderer({ block, lessonId, onComplete, preview, onGoToStep }: Props) {
+export default function LessonBlockRenderer({ block, lessonId, onComplete, preview, onGoToStep, lessonLanguage }: Props) {
   const rawType = (
     block.type ||
     (block as any).block_type ||
@@ -105,6 +130,7 @@ export default function LessonBlockRenderer({ block, lessonId, onComplete, previ
       "theory_quiz",
       "test",
       "task",
+      "free_writing",
     ],
     [],
   );
@@ -114,10 +140,19 @@ export default function LessonBlockRenderer({ block, lessonId, onComplete, previ
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [pronunciationProgress, setPronunciationProgress] = useState<Record<number, boolean>>({});
   const [pronunciationIndex, setPronunciationIndex] = useState(0);
+  const [freeAnswer, setFreeAnswer] = useState("");
+  const [freeResult, setFreeResult] = useState<FreeWritingResponse | null>(null);
+  const [freeLoading, setFreeLoading] = useState(false);
+  const [freeError, setFreeError] = useState<string | null>(null);
   useEffect(() => {
     setPronunciationProgress({});
     setPronunciationIndex(0);
   }, [block.id]);
+  useEffect(() => {
+    setFreeAnswer("");
+    setFreeResult(null);
+    setFreeError(null);
+  }, [block.id, blockType]);
   useEffect(() => {
     if (unsupported && !preview) {
       onComplete();
@@ -125,12 +160,11 @@ export default function LessonBlockRenderer({ block, lessonId, onComplete, previ
   }, [unsupported, preview, onComplete]);
 
   if (blockType === "video") {
-    const videoUrl = content.video_url || content.url;
+    const videoUrl = safeString(content.video_url || content.url);
+    const posterUrl = safeString(content.thumbnail_url);
     return (
       <div className="space-y-4 rounded-2xl bg-panel p-6 shadow-card">
-        <div className="aspect-video overflow-hidden rounded-xl bg-midnight">
-          <video src={videoUrl} poster={content.thumbnail_url} controls className="h-full w-full" />
-        </div>
+        <VideoPlayer url={videoUrl} poster={posterUrl} />
         {content.caption && <p className="text-sm text-ink/80">{content.caption}</p>}
         <button
           className="rounded-xl bg-gold px-5 py-3 text-sm font-semibold text-slateDeep shadow-soft transition hover:bg-goldDark"
@@ -150,9 +184,7 @@ export default function LessonBlockRenderer({ block, lessonId, onComplete, previ
     return (
       <div className="space-y-4 rounded-2xl bg-panel p-6 shadow-card">
         {hasVideo && (
-          <div className="aspect-video overflow-hidden rounded-xl bg-midnight">
-            <video src={data.video_url} poster={data.thumbnail_url} controls className="h-full w-full" />
-          </div>
+          <VideoPlayer url={data.video_url} poster={data.thumbnail_url} />
         )}
         {data.title && <h3 className="text-xl font-semibold text-white">{data.title}</h3>}
         <div className="prose prose-invert max-w-none prose-headings:text-white prose-p:text-ink">
@@ -173,13 +205,10 @@ export default function LessonBlockRenderer({ block, lessonId, onComplete, previ
   }
 
   if (blockType === "audio_theory") {
+    const audioUrl = resolveAudioSrc(content);
     return (
       <div className="space-y-4 rounded-2xl bg-panel p-6 shadow-card">
-        {content.audio_url && (
-          <audio controls src={content.audio_url} className="w-full">
-            Ваш браузер не поддерживает аудио.
-          </audio>
-        )}
+        {audioUrl ? <AudioPlayer src={audioUrl} /> : null}
         <div className="prose prose-invert max-w-none prose-headings:text-white prose-p:text-ink">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{content.markdown || ""}</ReactMarkdown>
         </div>
@@ -227,7 +256,7 @@ export default function LessonBlockRenderer({ block, lessonId, onComplete, previ
     const word =
       active.word || active.title || active.phrase || active.expected_pronunciation || content.phrase || "Произнесите фразу";
     const wordId = active.word_id || active.id || content.word_id || block.word_id;
-    const sampleAudio = active.audio_url || content.sample_audio_url;
+    const sampleAudio = resolveAudioSrc(active) || content.sample_audio_url;
     const doneCurrent = pronunciationProgress[pronunciationIndex];
     const allDone = hasItems ? items.every((_, idx) => pronunciationProgress[idx]) : doneCurrent;
     const playSample = () => {
@@ -319,15 +348,11 @@ export default function LessonBlockRenderer({ block, lessonId, onComplete, previ
   }
 
   if (blockType === "audio") {
-    const audioUrl = content.audio_url || block.audio_url;
+    const audioUrl = resolveAudioSrc(content) || resolveAudioSrc(block);
     const transcript = content.transcript || content.translation;
     return (
       <div className="space-y-4 rounded-2xl bg-panel p-6 shadow-card">
-        {audioUrl && (
-          <audio controls src={audioUrl} className="w-full">
-            Ваш браузер не поддерживает аудио.
-          </audio>
-        )}
+        {audioUrl ? <AudioPlayer src={audioUrl} /> : null}
         {transcript && <p className="text-sm text-ink/80">{transcript}</p>}
         <button
           type="button"
@@ -358,6 +383,129 @@ export default function LessonBlockRenderer({ block, lessonId, onComplete, previ
         >
           Далее
         </button>
+      </div>
+    );
+  }
+
+  if (blockType === "free_writing") {
+    const prompt = content.question || content.prompt || "Напишите небольшой ответ на задание.";
+    const rubric = content.rubric || "";
+    const language = (content.language || lessonLanguage || "kk") as string;
+
+    const handleCheck = async () => {
+      if (!freeAnswer.trim()) {
+        setFreeError("Введите ответ для проверки.");
+        return;
+      }
+      setFreeLoading(true);
+      setFreeError(null);
+      try {
+        const res = await autocheckerApi.checkFreeWriting({
+          prompt,
+          student_answer: freeAnswer,
+          rubric: rubric || undefined,
+          language,
+        });
+        if (!res.ok) {
+          setFreeResult(null);
+          setFreeError(res.error || "Gemini недоступен. Попробуйте позже.");
+        } else {
+          setFreeResult(res);
+        }
+      } catch (err: any) {
+        const data = err?.response?.data;
+        const message = data?.error || data?.detail || err?.message || "Не удалось выполнить проверку.";
+        setFreeResult(null);
+        setFreeError(message);
+      } finally {
+        setFreeLoading(false);
+      }
+    };
+
+    return (
+      <div className="space-y-5 rounded-2xl bg-panel p-6 shadow-card">
+        <div className="space-y-2">
+          <p className="text-sm font-semibold uppercase tracking-wide text-gold">Free writing</p>
+          <h3 className="text-2xl font-semibold text-white">{prompt}</h3>
+          {rubric ? <p className="text-sm text-ink/80">Критерии: {rubric}</p> : null}
+          <p className="text-xs text-ink/60">Язык проверки: {(language || "kk").toUpperCase()}</p>
+        </div>
+
+        <div className="space-y-3">
+          <label className="text-sm font-semibold text-ink/80" htmlFor="free-writing-answer">
+            Ваш ответ
+          </label>
+          <textarea
+            id="free-writing-answer"
+            rows={5}
+            value={freeAnswer}
+            onChange={(e) => setFreeAnswer(e.target.value)}
+            className="w-full rounded-xl border border-slate/50 bg-midnight px-4 py-3 text-base text-ink shadow-inner placeholder:text-ink/50 focus:border-gold focus:outline-none"
+            placeholder="Введите свободный ответ..."
+          />
+          <div className="flex flex-wrap items-center gap-3 text-xs text-ink/60">
+            <span>Символов: {freeAnswer.length}</span>
+            {freeResult?.request_id ? <span className="rounded bg-slate/50 px-2 py-1 font-mono text-[10px]">req {freeResult.request_id}</span> : null}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            disabled={freeLoading || !freeAnswer.trim()}
+            onClick={handleCheck}
+            className="flex-1 rounded-xl bg-gold px-5 py-3 text-sm font-semibold text-slateDeep shadow-soft transition hover:bg-goldDark disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {freeLoading ? "Проверяем..." : "Check"}
+          </button>
+          <button
+            type="button"
+            onClick={onComplete}
+            className="rounded-xl bg-slate px-5 py-3 text-sm font-semibold text-ink shadow-soft transition hover:bg-slateDeep hover:text-white"
+          >
+            {freeResult?.ok ? "Далее" : "Пропустить"}
+          </button>
+        </div>
+
+        {freeError ? (
+          <div className="rounded-xl border border-red-500/40 bg-red-900/40 px-4 py-3 text-sm text-red-100">{freeError}</div>
+        ) : null}
+
+        {freeResult?.ok ? (
+          <div className="space-y-3 rounded-2xl border border-slate/50 bg-midnight/60 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-sm uppercase tracking-wide text-gold">Результат</p>
+                <p className="text-3xl font-semibold text-white">{freeResult.score ?? "—"}</p>
+              </div>
+              <div className="rounded-full bg-slate px-3 py-1 text-xs font-semibold uppercase tracking-wide text-ink/80">
+                {freeResult.level || "—"}
+              </div>
+            </div>
+            <p className="text-sm text-ink/80">{freeResult.feedback || "Фидбек появится после проверки."}</p>
+            {freeResult.corrections && freeResult.corrections.length ? (
+              <ul className="space-y-2 text-sm text-ink">
+                {freeResult.corrections.map((item, idx) => (
+                  <li key={idx} className="flex gap-2">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-gold" aria-hidden />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-ink/60">Исправления отсутствуют.</p>
+            )}
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={onComplete}
+                className="rounded-xl bg-gold px-5 py-2 text-sm font-semibold text-slateDeep shadow-soft transition hover:bg-goldDark"
+              >
+                Завершить блок
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -427,7 +575,10 @@ function QuizTasksBlock({ questions, preview, onComplete }: { questions: any[]; 
               <div className="flex items-center gap-3 rounded-xl bg-slate/60 p-3 text-sm text-ink/80">
                 <button
                   type="button"
-                  onClick={() => q.audio_url && new Audio(q.audio_url).play()}
+                  onClick={() => {
+                    const src = resolveAudioSrc(q);
+                    if (src) new Audio(src).play();
+                  }}
                   className="rounded-full bg-gold px-4 py-2 text-sm font-semibold text-slateDeep shadow-soft transition hover:bg-goldDark"
                 >
                   ▶ Слушать
@@ -498,7 +649,7 @@ function AudioTaskBlock({ block, content, onComplete }: { block: LessonBlock; co
   const [feedback, setFeedback] = useState<string | null>(null);
   const [correct, setCorrect] = useState<boolean | null>(null);
   const options: string[] = content.options || [];
-  const audioUrl = content.audio_url;
+  const audioUrl = resolveAudioSrc(content);
   const transcript = content.transcript || content.prompt || content.question;
 
   const submit = async () => {
@@ -525,15 +676,18 @@ function AudioTaskBlock({ block, content, onComplete }: { block: LessonBlock; co
       <div className="space-y-3 rounded-2xl bg-midnight p-5 shadow-inner">
         <p className="text-sm font-semibold uppercase tracking-wide text-gold">1. Прослушайте аудио и повторите</p>
         {audioUrl ? (
-          <div className="flex items-center gap-3 rounded-xl bg-slate/60 p-4 shadow-inner">
-            <button
-              type="button"
-              onClick={() => new Audio(audioUrl).play()}
-              className="rounded-full bg-gold px-4 py-2 text-sm font-semibold text-slateDeep shadow-soft transition hover:bg-goldDark"
-            >
-              ▶ Слушать
-            </button>
-            <span className="text-sm text-ink/80">{transcript || "Нажмите, чтобы прослушать фразу"}</span>
+          <div className="space-y-2 rounded-xl bg-slate/60 p-4 shadow-inner">
+            <div className="flex items-center gap-3 text-sm text-ink/80">
+              <button
+                type="button"
+                onClick={() => new Audio(audioUrl).play()}
+                className="rounded-full bg-gold px-4 py-2 text-sm font-semibold text-slateDeep shadow-soft transition hover:bg-goldDark"
+              >
+                ▶ Слушать
+              </button>
+              <span>{transcript || "Нажмите, чтобы прослушать фразу"}</span>
+            </div>
+            <AudioPlayer src={audioUrl} />
           </div>
         ) : (
           <div className="rounded-xl bg-slate/40 p-4 text-sm text-ink/60">Аудио не приложено</div>
@@ -542,7 +696,9 @@ function AudioTaskBlock({ block, content, onComplete }: { block: LessonBlock; co
       </div>
 
       <div className="space-y-3 rounded-2xl bg-midnight p-5 shadow-inner">
-        <p className="text-sm font-semibold uppercase tracking-wide text-gold">2. Выберите правильный вариант</p>
+        <p className="text-sm font-semibold uppercase tracking-wide text-gold">
+          {options.length > 0 ? "2. Выберите правильный вариант" : "2. Напишите, о чем говорится"}
+        </p>
         {options.length > 0 ? (
           <div className="space-y-2">
             {options.map((opt, idx) => (
@@ -563,11 +719,12 @@ function AudioTaskBlock({ block, content, onComplete }: { block: LessonBlock; co
             ))}
           </div>
         ) : (
-          <input
+          <textarea
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
             className="w-full rounded-xl bg-slate/60 px-4 py-3 text-sm text-ink placeholder:text-ink/50 shadow-inner focus:outline-none focus:ring-2 focus:ring-gold"
-            placeholder="Введите ответ"
+            placeholder="Прослушайте и напишите, о чем говорится"
+            rows={4}
           />
         )}
       </div>

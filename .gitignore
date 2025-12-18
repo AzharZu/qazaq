@@ -1,8 +1,18 @@
+# Node/SPA artifacts
 node_modules
-project/node_modules
-project/admin-spa/node_modules
+*/node_modules
+.next
+dist
 project/admin-spa/dist
-*.log
-*.pyc
+
+# Python caches
 __pycache__
+.pytest_cache
+*.pyc
+
+# Env/OS junk
+.env
+.env.local
+*.db
+*.log
 .DS_Store

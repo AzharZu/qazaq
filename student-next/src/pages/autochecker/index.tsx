@@ -1,237 +1,314 @@
-import { FormEvent, useMemo, useState } from "react";
-import { AutoCheckerHtmlResponse, AutoCheckerMistake, autocheckerApi } from "@/lib/api/autochecker";
+import Head from "next/head";
+import { useMemo, useState } from "react";
+import DOMPurify from "isomorphic-dompurify";
+import { autocheckerApi, TextCheckIssue, TextCheckResponse } from "@/lib/api/autochecker";
 
-const emptyResult: AutoCheckerHtmlResponse = {
-  ai_used: false,
-  model: null,
-  overall_score: 0,
-  categories: { grammar: 0, vocabulary: 0, word_order: 0, clarity: 0 },
-  mistakes: [],
-  mentor_feedback: "",
-  improved_version: "",
-  recommendations: [],
+const LANG_OPTIONS: Array<{ value: "ru" | "kk"; label: string }> = [
+  { value: "ru", label: "Русский" },
+  { value: "kk", label: "Қазақша" },
+];
+
+const COPY = {
+  ru: {
+    title: "ИИ-помощник для вашего текста",
+    subtitle: "Проверка грамматики, лексики и орфографии с подсветкой ошибок и рекомендациями.",
+    inputLabel: "Текст для проверки",
+    placeholder: "Введите текст для проверки...",
+    languageLabel: "Язык проверки",
+    checkButton: "Проверить через ИИ",
+    summaryTitle: "Qazaq Mentor говорит:",
+    highlightTitle: "Ваш текст с подсветкой ошибок",
+    before: "До",
+    after: "После",
+    issuesTitle: "Найденные ошибки",
+    recommendations: "Рекомендации",
+    suggested: "Предложенный вариант текста",
+    noIssues: "Ошибки не найдены",
+    noRecommendations: "Рекомендаций пока нет",
+    suggestedHint: "Это предложение не должно восприниматься как готовый текст «под ключ».",
+    scoreLabel: "Оценка",
+  },
+  kk: {
+    title: "Мәтінге арналған AI-көмекші",
+    subtitle: "Грамматика, лексика және орфография бойынша тексеру, қателерді белгілеу және ұсыныстар.",
+    inputLabel: "Тексерілетін мәтін",
+    placeholder: "Мәтінді енгізіңіз...",
+    languageLabel: "Тексеру тілі",
+    checkButton: "ИИ арқылы тексеру",
+    summaryTitle: "Qazaq Mentor айтады:",
+    highlightTitle: "Қателері белгіленген мәтін",
+    before: "Алдыңғы нұсқа",
+    after: "Кейінгі нұсқа",
+    issuesTitle: "Табылған қателер",
+    recommendations: "Ұсыныстар",
+    suggested: "Ұсынылған мәтін",
+    noIssues: "Қателер табылмады",
+    noRecommendations: "Ұсыныстар жоқ",
+    suggestedHint: "Бұл нұсқа дайын мәтін емес, тек ИИ-дің ұсынысы.",
+    scoreLabel: "Баға",
+  },
 };
 
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+const ALLOWED_TAGS = ["mark", "span", "br", "p"];
+const ALLOWED_ATTR = ["data-error-id", "class"];
 
-const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function ScoreBar({ label, value, max = 10 }: { label: string; value: number; max?: number }) {
+  const safe = Math.max(0, Math.min(max, Math.round(value)));
+  const percent = Math.round((safe / max) * 100);
+  return (
+    <div className="space-y-2 rounded-xl bg-midnight p-4 shadow-inner">
+      <div className="flex items-center justify-between text-sm font-semibold text-ink/80">
+        <span>{label}</span>
+        <span className="text-ink">{safe}/{max}</span>
+      </div>
+      <div className="h-3 w-full rounded-full bg-slate/50 shadow-inner">
+        <div className="h-3 rounded-full bg-gradient-to-r from-gold to-goldDark transition-all" style={{ width: `${percent}%` }} />
+      </div>
+    </div>
+  );
+}
 
-const highlightText = (source: string, mistakes: AutoCheckerMistake[]) => {
-  if (!source) return "";
-  let html = escapeHtml(source);
-  const seen = new Set<string>();
-  mistakes.forEach((m) => {
-    const fragment = (m.fragment || "").trim();
-    if (!fragment || seen.has(fragment)) return;
-    const safe = escapeHtml(fragment);
-    const pattern = new RegExp(escapeRegex(safe), "g");
-    html = html.replace(pattern, `<mark>${safe}</mark>`);
-    seen.add(fragment);
-  });
-  return html;
-};
+function IssueCard({ issue, lang }: { issue: TextCheckIssue; lang: "ru" | "kk" }) {
+  const typeLabels =
+    lang === "kk"
+      ? { grammar: "Грамматика", lexicon: "Лексика", spelling: "Орфография", punctuation: "Тыныс белгілері" }
+      : { grammar: "Грамматика", lexicon: "Лексика", spelling: "Орфография", punctuation: "Пунктуация" };
+  const label = typeLabels[issue.type as keyof typeof typeLabels] || issue.type;
 
-const clampScore = (value: number) => Math.max(0, Math.min(100, value));
+  return (
+    <div className="space-y-3 rounded-xl bg-midnight p-4 shadow-inner">
+      <div className="flex items-center justify-between gap-3">
+        <span className="rounded-full bg-slate px-3 py-1 text-xs font-semibold uppercase tracking-wide text-ink/80">{label}</span>
+        <span className="rounded-full bg-slate/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink/70">
+          {issue.severity}
+        </span>
+      </div>
+      <div className="space-y-1">
+        <p className="text-sm font-semibold text-white">{issue.title}</p>
+        <p className="text-sm text-ink/80">{issue.explanation}</p>
+      </div>
+      <div className="space-y-1 rounded-lg bg-slate/50 p-3 text-sm text-ink/90">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">{lang === "kk" ? "Дейін" : "До"}</p>
+        <p>{issue.before || "—"}</p>
+      </div>
+      <div className="space-y-1 rounded-lg bg-slate/50 p-3 text-sm text-ink/90">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">{lang === "kk" ? "Кейін" : "После"}</p>
+        <p>{issue.after || "—"}</p>
+      </div>
+    </div>
+  );
+}
 
 export default function AutoCheckerPage() {
+  const [language, setLanguage] = useState<"ru" | "kk">("kk");
   const [text, setText] = useState("");
-  const [result, setResult] = useState<AutoCheckerHtmlResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<TextCheckResponse | null>(null);
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  const copy = COPY[language];
+
+  const sanitizedHighlight = useMemo(() => {
+    const source = (result?.highlighted_html && result.highlighted_html.trim()) || result?.before_text || "";
+    if (!source) return "";
+    return DOMPurify.sanitize(source, { ALLOWED_TAGS, ALLOWED_ATTR });
+  }, [result]);
+
+  const mentorNote = useMemo(() => {
+    if (result?.recommendations?.length) return result.recommendations[0];
+    if (result?.issues?.length) return result.issues[0].explanation;
+    return language === "kk" ? "Мәтінді тексеру үшін жоғарыда мәтін енгізіңіз." : "Введите текст выше, чтобы получить проверку.";
+  }, [language, result]);
+
+  const handleCheck = async () => {
+    if (!text.trim()) {
+      setError(language === "kk" ? "Мәтін бос." : "Текст пустой.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const res = await autocheckerApi.check(text);
-      if (!res.ai_used) {
-        setError("ИИ недоступен. Проверка не выполнена.");
+      const res = await autocheckerApi.textCheck({ text, language, mode: "full" });
+      if (!res.ok) {
         setResult(null);
-        return;
+        setError(res.error || (language === "kk" ? "LLM қатесі" : "Ошибка LLM"));
+      } else {
+        setResult(res);
       }
-      setResult(res);
-    } catch (_err: any) {
-      setError("ИИ недоступен. Проверка не выполнена.");
+    } catch (err: any) {
+      const data = err?.response?.data;
+      const status = err?.response?.status;
+      let message = data?.error || data?.detail || err?.message || "Request failed";
+      if (status === 401) message = language === "kk" ? "Кіру қажет (401)." : "Нужна авторизация (401).";
+      if (status && status >= 500) message = language === "kk" ? "Сервис уақытша қолжетімсіз." : "Сервис временно недоступен.";
       setResult(null);
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
-  const data = useMemo(() => result ?? emptyResult, [result]);
-  const highlighted = highlightText(text, data.mistakes) || "<p class='text-slate'>Подсветка появится здесь.</p>";
-  const improved = data.improved_version || "Корректированный текст появится здесь.";
-
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
-      <header className="text-center space-y-3">
-        <p className="text-xs uppercase tracking-[0.4em] text-gold">AutoChecker</p>
-        <h1 className="text-hero font-semibold text-white">ИИ-помощник для вашего текста</h1>
-        <p className="text-sm text-slate">
-          Проверка грамматики, лексики и пунктуации на казахском языке с мгновенной подсветкой ошибок и
-          рекомендациями.
-        </p>
-      </header>
+    <>
+      <Head>
+        <title>AutoChecker</title>
+      </Head>
+      <div className="space-y-8">
+        <section className="space-y-4 rounded-2xl bg-panel p-6 shadow-card">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-2">
+              <p className="text-sm font-semibold uppercase tracking-wide text-gold">AutoChecker</p>
+              <h1 className="text-3xl font-semibold text-white">{copy.title}</h1>
+              <p className="text-sm text-ink/80">{copy.subtitle}</p>
+            </div>
+            {result?.request_id ? (
+              <span className="rounded-full bg-slate px-3 py-1 text-xs font-mono text-ink/80">req: {result.request_id}</span>
+            ) : null}
+          </div>
 
-      <form onSubmit={submit} className="card-surface space-y-4 p-6">
-        <label className="flex flex-col gap-3">
-          <span className="text-sm font-semibold text-ink/80">Введите текст для проверки</span>
-          <div className="relative">
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-ink/80" htmlFor="autochecker-text">
+              {copy.inputLabel}
+            </label>
             <textarea
+              id="autochecker-text"
+              className="w-full rounded-xl border border-slate/50 bg-midnight px-4 py-3 text-base text-ink shadow-inner placeholder:text-ink/50 focus:border-gold focus:outline-none"
+              rows={6}
               value={text}
               onChange={(e) => setText(e.target.value)}
-              rows={8}
-              className="w-full rounded-xl border border-slate/40 bg-midnight px-4 py-4 text-base text-ink shadow-soft placeholder:text-slate/60 focus:border-gold focus:outline-none"
-              placeholder="Жазыңыз немесе вставьте текст на казахском..."
+              placeholder={copy.placeholder}
             />
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-ink/60">
+              <span>{text.length} символов</span>
+              <div className="flex items-center gap-2">
+                <span>{copy.languageLabel}</span>
+                <select
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value as "ru" | "kk")}
+                  className="rounded-lg border border-slate/50 bg-midnight px-3 py-1 text-xs text-ink shadow-inner focus:border-gold focus:outline-none"
+                >
+                  {LANG_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              aria-label="Голосовой ввод"
-              className="absolute right-3 top-3 rounded-full border border-slate/50 bg-panel px-3 py-2 text-xs font-semibold uppercase tracking-wide text-ink/80 transition hover:border-gold hover:text-white"
+              onClick={handleCheck}
+              disabled={loading}
+              className="rounded-xl bg-gold px-6 py-3 text-sm font-semibold text-slateDeep shadow-soft transition hover:bg-goldDark disabled:cursor-not-allowed disabled:opacity-70"
             >
-              🎤
+              {loading ? (language === "kk" ? "Тексеріп жатырмыз..." : "Проверяем...") : copy.checkButton}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setText("");
+                setResult(null);
+                setError(null);
+              }}
+              className="rounded-xl bg-slate px-6 py-3 text-sm font-semibold text-ink transition hover:bg-slateDeep hover:text-white"
+            >
+              {language === "kk" ? "Тазарту" : "Очистить"}
             </button>
           </div>
-        </label>
-        <div className="flex items-center justify-between text-sm text-ink/70">
-          <span>Символов: {text.length}</span>
-          {result && (
-            <span className="rounded-full bg-slate/40 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gold">
-              🤖 Проверено ИИ ({data.model || "Gemini"})
-            </span>
-          )}
-        </div>
-        <button
-          type="submit"
-          disabled={loading || !text.trim()}
-          className="w-full rounded-xl bg-gold px-6 py-3 text-center text-sm font-semibold uppercase tracking-wide text-night transition hover:bg-goldDark disabled:cursor-not-allowed disabled:opacity-70"
-        >
-          {loading ? "Проверяем..." : "Проверить через ИИ"}
-        </button>
-      </form>
 
-      {error && (
-        <div className="rounded-xl border border-red-500/50 bg-red-900/30 px-6 py-4 text-sm text-red-200">
-          ⚠️ {error}
-        </div>
-      )}
+          {error ? <div className="rounded-xl border border-red-500/40 bg-red-900/40 px-4 py-3 text-sm text-red-100">{error}</div> : null}
+        </section>
 
-      {result && !error && (
-        <div className="space-y-6">
-          <section className="card-surface p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">Оценка текста</h3>
-              <span className="text-xs uppercase tracking-wide text-slate">0-100</span>
+        {result ? (
+          <section className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-2xl bg-panel p-5 shadow-card">
+                <p className="text-sm font-semibold uppercase tracking-wide text-gold">{language === "kk" ? "Деңгей" : "Уровень"}</p>
+                <div className="mt-3 flex items-center gap-3">
+                  <span className="rounded-full bg-slate px-3 py-1 text-sm font-semibold text-ink">{result.level}</span>
+                  <span className="rounded-full bg-slate/60 px-3 py-1 text-xs font-semibold text-ink/80">{copy.scoreLabel}: {result.scores.overall}</span>
+                </div>
+                <p className="mt-2 text-xs text-ink/60">{copy.languageLabel}: {language === "kk" ? "Қазақша" : "Русский"}</p>
+              </div>
+              <div className="rounded-2xl bg-panel p-5 shadow-card md:col-span-2">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <ScoreBar label={language === "kk" ? "Грамматика" : "Грамматика"} value={result.scores.grammar} />
+                  <ScoreBar label={language === "kk" ? "Лексика" : "Лексика"} value={result.scores.lexicon} />
+                  <ScoreBar label={language === "kk" ? "Орфография" : "Орфография"} value={result.scores.spelling} />
+                  <ScoreBar label={language === "kk" ? "Тыныс белгілері" : "Пунктуация"} value={result.scores.punctuation} />
+                </div>
+              </div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Progress label="Grammar" value={clampScore(data.categories.grammar)} />
-              <Progress label="Vocabulary" value={clampScore(data.categories.vocabulary)} />
-              <Progress label="Word Order" value={clampScore(data.categories.word_order)} />
-              <Progress label="Clarity" value={clampScore(data.categories.clarity)} />
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-slate/40 bg-midnight/60 px-4 py-3">
-              <span className="text-sm text-ink/80">Общий балл</span>
-              <span className="text-2xl font-semibold text-gold">{clampScore(data.overall_score)}</span>
-            </div>
-          </section>
 
-          <section className="card-surface p-6 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold uppercase tracking-wide text-gold">Qazaq Mentor говорит</p>
-              <span className="rounded-full border border-slate/40 px-3 py-1 text-xs text-ink/70">
-                🤖 {data.model || "Gemini"}
-              </span>
+            <div className="rounded-2xl bg-panel p-5 shadow-card">
+              <p className="text-sm font-semibold text-gold">{copy.summaryTitle}</p>
+              <p className="mt-2 text-sm text-ink">{mentorNote}</p>
             </div>
-            <p className="text-base text-ink/90">
-              {data.mentor_feedback || "Комментарий появится после проверки."}
-            </p>
-          </section>
 
-          <section className="card-surface p-6 space-y-4">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-gold">Ваш текст с подсветкой ошибок</p>
-              <h3 className="text-xl font-semibold text-white">Before</h3>
+            <div className="rounded-2xl bg-panel p-5 shadow-card">
+              <p className="text-sm font-semibold text-gold">{copy.highlightTitle}</p>
               <div
-                className="mt-2 max-w-none rounded-lg border border-slate/40 bg-midnight/60 p-4 text-base leading-relaxed text-ink"
-                dangerouslySetInnerHTML={{ __html: highlighted }}
+                className="mt-3 min-h-[120px] rounded-xl bg-midnight p-4 text-sm leading-relaxed text-ink shadow-inner"
+                dangerouslySetInnerHTML={{ __html: sanitizedHighlight || result.before_text }}
               />
             </div>
-            <div>
-              <h3 className="text-xl font-semibold text-white">After</h3>
-              <div className="mt-2 rounded-lg border border-slate/40 bg-midnight/60 p-4 text-sm text-ink whitespace-pre-line">
-                {improved}
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl bg-panel p-5 shadow-card">
+                <p className="text-sm font-semibold text-gold">{copy.before}</p>
+                <p className="mt-2 min-h-[120px] rounded-xl bg-midnight p-4 text-sm text-ink shadow-inner whitespace-pre-wrap">{result.before_text || "—"}</p>
+              </div>
+              <div className="rounded-2xl bg-panel p-5 shadow-card">
+                <p className="text-sm font-semibold text-gold">{copy.after}</p>
+                <p className="mt-2 min-h-[120px] rounded-xl bg-midnight p-4 text-sm text-ink shadow-inner whitespace-pre-wrap">{result.after_text || "—"}</p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-panel p-5 shadow-card">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gold">{copy.issuesTitle}</p>
+                <span className="text-xs text-ink/60">{result.issues?.length || 0}</span>
+              </div>
+              {result.issues?.length ? (
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {result.issues.map((issue) => (
+                    <IssueCard key={issue.id} issue={issue} lang={language} />
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-ink/70">{copy.noIssues}</p>
+              )}
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl bg-panel p-5 shadow-card">
+                <p className="text-sm font-semibold text-gold">{copy.recommendations}</p>
+                {result.recommendations?.length ? (
+                  <ul className="mt-3 space-y-2 text-sm text-ink">
+                    {result.recommendations.map((rec, idx) => (
+                      <li key={idx} className="flex gap-2">
+                        <span className="mt-1 h-2 w-2 rounded-full bg-gold" aria-hidden />
+                        <span>{rec}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm text-ink/70">{copy.noRecommendations}</p>
+                )}
+              </div>
+
+              <div className="rounded-2xl bg-panel p-5 shadow-card">
+                <p className="text-sm font-semibold text-gold">{copy.suggested}</p>
+                <p className="mt-2 min-h-[120px] rounded-xl bg-midnight p-4 text-sm text-ink shadow-inner whitespace-pre-wrap">{result.suggested_text || "—"}</p>
+                <p className="mt-2 text-xs text-ink/50">{copy.suggestedHint}</p>
               </div>
             </div>
           </section>
-
-          <section className="card-surface p-6 space-y-4">
-            <p className="text-sm font-semibold uppercase tracking-wide text-gold">Найденные ошибки</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {data.mistakes.length === 0 && (
-                <div className="rounded-lg border border-slate/40 bg-midnight/60 p-4 text-sm text-ink/70">
-                  Ошибок не обнаружено.
-                </div>
-              )}
-              {data.mistakes.map((err, idx) => (
-                <article
-                  key={`${err.fragment}-${idx}`}
-                  className="rounded-lg border border-slate/40 bg-midnight/60 p-4 shadow-soft space-y-2"
-                >
-                  <span className="text-xs uppercase tracking-wide text-gold">Фрагмент</span>
-                  <p className="text-sm text-ink">{err.fragment || "—"}</p>
-                  <p className="text-sm text-ink/90">Проблема: {err.issue || "—"}</p>
-                  <p className="text-sm text-ink/80">Почему: {err.explanation || "—"}</p>
-                  <p className="text-sm text-gold">Вариант: {err.suggestion || "—"}</p>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="card-surface p-6 space-y-3">
-            <p className="text-sm font-semibold uppercase tracking-wide text-gold">Рекомендации</p>
-            <ul className="space-y-2 text-sm text-ink">
-              {data.recommendations.length === 0 && <li className="text-slate">Нет рекомендаций.</li>}
-              {data.recommendations.map((item, idx) => (
-                <li key={idx} className="flex gap-2">
-                  <span className="mt-1 h-2 w-2 rounded-full bg-gold" aria-hidden />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="card-surface p-6 space-y-3">
-            <p className="text-sm font-semibold uppercase tracking-wide text-gold">Предложенный вариант текста</p>
-            <div className="rounded-lg border border-slate/40 bg-midnight/60 p-4 text-sm text-ink whitespace-pre-line">
-              {improved}
-            </div>
-          </section>
-        </div>
-      )}
-    </div>
-  );
-}
-
-type ProgressProps = { label: string; value: number };
-
-function Progress({ label, value }: ProgressProps) {
-  const width = Math.min(100, Math.max(0, value));
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between text-sm text-ink/80">
-        <span>{label}</span>
-        <span className="text-gold font-semibold">{value.toFixed(0)}</span>
+        ) : null}
       </div>
-      <div className="h-2 w-full rounded-full bg-slate/50">
-        <div className="h-2 rounded-full bg-gold" style={{ width: `${width}%` }} />
-      </div>
-    </div>
+    </>
   );
 }

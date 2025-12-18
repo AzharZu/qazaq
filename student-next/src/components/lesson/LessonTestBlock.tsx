@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
+import { resolveMediaUrl } from "@/lib/media";
 
 type Question = {
   question: string;
   type: string;
   options?: string[];
   correct_answer?: string | number | (string | number)[];
+  audio_path?: string;
   audio_url?: string;
   placeholder?: string;
 };
@@ -33,7 +35,10 @@ export default function LessonTestBlock({ questions }: { questions: Question[] }
               <div className="space-y-2">
                 <button
                   type="button"
-                  onClick={() => q.audio_url && new Audio(q.audio_url).play()}
+                  onClick={() => {
+                    const src = resolveMediaUrl(q.audio_path || q.audio_url);
+                    if (src) new Audio(src).play();
+                  }}
                   className="flex items-center gap-2 rounded bg-gray-200 px-3 py-2 text-sm font-semibold text-gray-800"
                 >
                   ▶ Прослушать

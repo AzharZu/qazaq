@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import Request, Response
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -5,6 +7,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from ..db.session import SessionLocal
 from ..db.models.user import User
 from .security import get_user_id_from_request
+
+
+async def assign_request_id(request: Request, call_next):
+    request.state.request_id = uuid.uuid4().hex
+    response: Response = await call_next(request)
+    response.headers["X-Request-ID"] = request.state.request_id
+    return response
 
 
 async def enforce_utf8(request: Request, call_next):

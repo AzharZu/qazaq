@@ -23,15 +23,20 @@ export interface LessonBlock {
   data?: any;
   payload?: any;
   url?: string;
-  video_url?: string;
+  video_url?: string | null;
+  thumbnail_url?: string | null;
+  caption?: string;
   image_url?: string;
-  audio_url?: string;
+  audio_path?: string | null;
+  audio_url?: string | null;
   markdown?: string;
   word_id?: number;
   word_ids?: number[];
   cards?: Flashcard[];
   items?: Flashcard[];
   question?: string;
+  rubric?: string;
+  language?: string;
   choices?: string[];
   options?: string[];
   answer?: number;
@@ -49,6 +54,7 @@ export interface Flashcard {
   word?: string;
   translation: string;
   image_url?: string | null;
+  audio_path?: string | null;
   audio_url?: string | null;
   example_sentence?: string;
 }
@@ -73,14 +79,15 @@ export type BlockType =
   | "quiz"
   | "theory_quiz"
   | "lesson_test"
-  | "audio_task";
+  | "audio_task"
+  | "free_writing";
 
 export type TheoryContent = {
   title?: string;
   markdown?: string;
   rich_text?: string;
-  video_url?: string;
-  thumbnail_url?: string;
+  video_url?: string | null;
+  thumbnail_url?: string | null;
 };
 
 export type FlashcardsContent = {
@@ -93,6 +100,7 @@ export type PronunciationItem = {
   translation?: string;
   example?: string;
   image_url?: string | null;
+  audio_path?: string | null;
   audio_url?: string | null;
 };
 
@@ -107,6 +115,7 @@ export type TaskQuestion = {
   question: string;
   type: "audio" | "audio_repeat" | "single" | "single_choice" | "fill-in" | "open";
   options?: string[];
+  audio_path?: string | null;
   audio_url?: string;
   placeholder?: string;
 };

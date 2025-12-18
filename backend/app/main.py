@@ -1,3 +1,5 @@
+import logging
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -18,22 +20,27 @@ from .api.routes import (
     lessons,
     admin_lessons,
     admin_blocks,
+    admin_courses,
+    admin_modules,
     upload,
     modules,
     audio_task,
     placement,
     placement_admin,
     pronunciation,
+    llm,
     progress,
     users,
     level_test,
     vocabulary,
 )
 from .core.config import get_settings
-from .core.middleware import enforce_utf8, load_current_user
+from .core.middleware import assign_request_id, enforce_utf8, load_current_user
 from .db.session import SessionLocal
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
+logger.info("LLM key present: %s", bool(os.getenv("LLM_API_KEY")))
 
 app = FastAPI(
     title=settings.app_name,
@@ -63,6 +70,7 @@ app.add_middleware(
     session_cookie="qazaq_state",
     max_age=86400 * 30,  # 30 days
 )
+app.middleware("http")(assign_request_id)
 app.middleware("http")(enforce_utf8)
 app.middleware("http")(load_current_user)
 
@@ -76,20 +84,21 @@ def _ensure_enum_values():
             exists = db.execute(text("SELECT 1 FROM pg_type WHERE typname = 'block_type_enum'")).scalar()
             if not exists:
                 return
-            db.execute(
-                text(
-                    """
-                    DO $$ BEGIN
-                      IF NOT EXISTS (
-                        SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid = e.enumtypid
-                        WHERE t.typname = 'block_type_enum' AND e.enumlabel = 'audio_task'
-                      ) THEN
-                        ALTER TYPE block_type_enum ADD VALUE 'audio_task';
-                      END IF;
-                    END $$;
-                    """
+            for new_value in ("audio_task", "free_writing"):
+                db.execute(
+                    text(
+                        f"""
+                        DO $$ BEGIN
+                          IF NOT EXISTS (
+                            SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid = e.enumtypid
+                            WHERE t.typname = 'block_type_enum' AND e.enumlabel = '{new_value}'
+                          ) THEN
+                            ALTER TYPE block_type_enum ADD VALUE '{new_value}';
+                          END IF;
+                        END $$;
+                        """
+                    )
                 )
-            )
             db.commit()
     except Exception:
         # ENUM type doesn't exist yet, migrations haven't run
@@ -103,10 +112,13 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 STUDENT_DIST = ROOT_DIR / "student-spa" / "dist"
 ADMIN_DIST = ROOT_DIR / "admin-spa" / "dist"
 BACKEND_STATIC = Path(__file__).resolve().parent / "static"
+UPLOADS_DIR = Path(settings.upload_root or ROOT_DIR / "uploads")
 
 app.mount("/app/assets", StaticFiles(directory=str(STUDENT_DIST / "assets"), check_dir=False), name="student-assets")
 app.mount("/admin/assets", StaticFiles(directory=str(ADMIN_DIST / "assets"), check_dir=False), name="admin-assets")
 app.mount("/static", StaticFiles(directory=str(BACKEND_STATIC), check_dir=False), name="static")
+# Serve uploaded files (audio/video/image) from the unified uploads folder
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR), check_dir=False), name="uploads")
 
 # API routers
 app.include_router(auth.router)
@@ -117,6 +129,8 @@ app.include_router(modules.router)
 app.include_router(lessons.router)
 app.include_router(admin_lessons.router)
 app.include_router(admin_blocks.router)
+app.include_router(admin_courses.router)
+app.include_router(admin_modules.router)
 app.include_router(blocks.router)
 app.include_router(upload.router)
 app.include_router(upload.admin_router)
@@ -130,6 +144,7 @@ app.include_router(certificates.router)
 app.include_router(vocabulary.router)
 app.include_router(users.router)
 app.include_router(debug.router)
+app.include_router(llm.router)
 
 
 def _spa_response(dist_dir: Path) -> FileResponse:

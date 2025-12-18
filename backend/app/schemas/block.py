@@ -13,6 +13,7 @@ BlockType = Literal[
     "flashcards",
     "pronunciation",
     "audio_task",
+    "free_writing",
     # compatibility buckets
     "quiz",
     "example",
@@ -29,7 +30,7 @@ class ExampleItem(BaseModel):
 
 
 class VideoBlockPayload(BaseModel):
-    video_url: str
+    video_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
     caption: Optional[str] = None
 
@@ -45,7 +46,8 @@ class TheoryBlockPayload(BaseModel):
 
 
 class AudioTheoryBlockPayload(BaseModel):
-    audio_url: str
+    audio_path: Optional[str] = None
+    audio_url: Optional[str] = None
     markdown: str
 
 
@@ -56,7 +58,8 @@ class ImageBlockPayload(BaseModel):
 
 
 class AudioBlockPayload(BaseModel):
-    audio_url: str
+    audio_path: Optional[str] = None
+    audio_url: Optional[str] = None
     transcript: str
     translation: str
 
@@ -68,6 +71,7 @@ class FlashcardItem(BaseModel):
     translation: str
     image_url: Optional[str] = Field(default=None, alias="image")
     audio_url: Optional[str] = None
+    audio_path: Optional[str] = None
     example_sentence: str = Field(default="", alias="example")
     pronunciation_enabled: bool = True
 
@@ -124,12 +128,19 @@ class LessonTestBlockPayload(BaseModel):
 
 
 class AudioTaskPayload(BaseModel):
-    audio_url: str
+    audio_path: Optional[str] = None
+    audio_url: Optional[str] = None
     transcript: str
     options: List[str] | None = None
     correct_answer: str
     answer_type: Literal["text", "multiple_choice"] = "multiple_choice"
     feedback: str | None = None
+
+
+class FreeWritingBlockPayload(BaseModel):
+    question: str = ""
+    rubric: Optional[str] = None
+    language: Optional[str] = None
 
 
 PAYLOAD_SCHEMAS: Dict[str, TypeAdapter] = {
@@ -143,6 +154,7 @@ PAYLOAD_SCHEMAS: Dict[str, TypeAdapter] = {
     "theory_quiz": TypeAdapter(TheoryQuizBlockPayload),
     "lesson_test": TypeAdapter(LessonTestBlockPayload),
     "audio_task": TypeAdapter(AudioTaskPayload),
+    "free_writing": TypeAdapter(FreeWritingBlockPayload),
 }
 
 
@@ -206,4 +218,5 @@ __all__ = [
     "TheoryQuizBlockPayload",
     "LessonTestBlockPayload",
     "AudioTaskPayload",
+    "FreeWritingBlockPayload",
 ]

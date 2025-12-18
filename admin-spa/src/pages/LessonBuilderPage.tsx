@@ -8,6 +8,8 @@ import { Textarea } from "../components/ui/textarea";
 import { Card, CardContent, CardTitle } from "../components/ui/card";
 import { useToast } from "../components/ui/use-toast";
 import { Spinner } from "../components/ui/spinner";
+import { VideoPlayer } from "../components/ui/video-player";
+import { resolveMediaUrl } from "../lib/media";
 
 type EditorProps = {
   block: LessonBlock;
@@ -18,15 +20,16 @@ type EditorProps = {
 const BLOCK_TEMPLATES: Record<BlockType, Record<string, any>> = {
   video: { video_url: "", thumbnail_url: "", caption: "" },
   theory: { title: "", markdown: "", video_url: "", thumbnail_url: "" },
-  audio_theory: { audio_url: "", markdown: "" },
+  audio_theory: { audio_path: "", audio_url: "", markdown: "" },
   image: { image_url: "", explanation: "", keywords: [] },
-  audio: { audio_url: "", transcript: "", translation: "" },
+  audio: { audio_path: "", audio_url: "", transcript: "", translation: "" },
   flashcards: { cards: [] },
   pronunciation: { items: [] },
   theory_quiz: { question: "", type: "single", options: ["", ""], correct_answer: [], explanation: "" },
   quiz: { title: "", questions: [] },
-  audio_task: { audio_url: "", transcript: "", options: ["", ""], correct_answer: "", answer_type: "multiple_choice", feedback: "" },
+  audio_task: { audio_path: "", audio_url: "", transcript: "", options: ["", ""], correct_answer: "", answer_type: "multiple_choice", feedback: "" },
   lesson_test: { passing_score: 80, questions: [{ question: "", type: "single", options: ["", ""], correct_answer: [] }] },
+  free_writing: { question: "", rubric: "", language: "kk" },
 };
 
 const typeLabels: Record<BlockType, string> = {
@@ -41,6 +44,7 @@ const typeLabels: Record<BlockType, string> = {
   theory_quiz: "Theory Quiz",
   quiz: "Quiz",
   lesson_test: "Final Test",
+  free_writing: "Free writing",
 };
 
 function deepCopy<T>(value: T): T {
@@ -51,7 +55,7 @@ function SectionLabel({ children }: { children: string }) {
   return <div className="text-xs uppercase tracking-[0.2em] text-slate-500">{children}</div>;
 }
 
-const CANONICAL_ORDER = ["theory", "flashcards", "pronunciation", "quiz", "theory_quiz", "lesson_test"];
+const CANONICAL_ORDER = ["theory", "flashcards", "pronunciation", "quiz", "theory_quiz", "lesson_test", "free_writing"];
 
 function sortBlocksCanonical(blocks: LessonBlock[]): LessonBlock[] {
   return [...blocks].sort((a, b) => {
@@ -70,6 +74,7 @@ type FlashcardRow = {
   translation: string;
   example_sentence?: string;
   image_url?: string;
+  audio_path?: string;
   audio_url?: string;
   order?: number;
 };
@@ -80,6 +85,7 @@ type TaskQuestion = {
   type: string;
   options?: string[];
   correct_answer?: string | string[] | number | number[];
+  audio_path?: string;
   audio_url?: string;
   placeholder?: string;
 };
@@ -94,6 +100,7 @@ function extractFlashcardsFromBlock(block: LessonBlock | null): FlashcardRow[] {
     translation: card.translation || card.back || "",
     example_sentence: card.example_sentence || card.example || "",
     image_url: card.image_url || card.image,
+    audio_path: card.audio_path,
     audio_url: card.audio_url,
     order: card.order || idx + 1,
   }));
@@ -112,7 +119,7 @@ export default function LessonBuilderPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [normalized, setNormalized] = useState(false);
   const { toast } = useToast();
-  const studentAppBase = (import.meta.env.VITE_STUDENT_URL || import.meta.env.VITE_STUDENT_APP_URL || "http://localhost:5174").replace(/\/$/, "");
+  const studentAppBase = (import.meta.env.VITE_STUDENT_URL || import.meta.env.VITE_STUDENT_APP_URL || "http://localhost:3002").replace(/\/$/, "");
 
   const theoryBlock = useMemo(() => blocks.find((b) => b.type === "theory") || null, [blocks]);
   const flashcardsBlock = useMemo(() => blocks.find((b) => b.type === "flashcards") || null, [blocks]);
@@ -121,10 +128,11 @@ export default function LessonBuilderPage() {
     () => blocks.find((b) => b.type === "quiz" || b.type === "lesson_test" || b.type === "theory_quiz") || null,
     [blocks],
   );
+  const freeWritingBlock = useMemo(() => blocks.find((b) => b.type === "free_writing") || null, [blocks]);
   const legacyBlocks = useMemo(
     () =>
       blocks.filter(
-        (b) => !["theory", "flashcards", "pronunciation", "quiz", "lesson_test", "theory_quiz"].includes(b.type),
+        (b) => !["theory", "flashcards", "pronunciation", "quiz", "lesson_test", "theory_quiz", "free_writing"].includes(b.type),
       ),
     [blocks],
   );
@@ -180,6 +188,7 @@ export default function LessonBuilderPage() {
       await maybeCreate("flashcards");
       await maybeCreate("pronunciation");
       await maybeCreate("quiz");
+      await maybeCreate("free_writing");
       const sorted = sortBlocksCanonical(nextBlocks).map((b, idx) => ({ ...b, order: idx + 1 }));
       setBlocks(sorted);
       setPendingReorder(true);
@@ -398,6 +407,29 @@ export default function LessonBuilderPage() {
                 onChange={(e) => handleLessonChange({ status: e.target.value })}
               />
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-600">Video type</label>
+                <select
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                  value={lesson?.video_type || "youtube"}
+                  onChange={(e) => handleLessonChange({ video_type: e.target.value })}
+                >
+                  <option value="youtube">YouTube</option>
+                  <option value="vimeo">Vimeo</option>
+                  <option value="file">Self-hosted mp4</option>
+                </select>
+                <Input
+                  placeholder="Video URL"
+                  value={lesson?.video_url || ""}
+                  onChange={(e) => handleLessonChange({ video_url: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-600">Preview</label>
+                <VideoPlayer videoType={(lesson?.video_type || "youtube").toLowerCase()} videoUrl={lesson?.video_url || ""} height="180px" />
+              </div>
+            </div>
             <div className="text-xs text-slate-500">
               {saving ? "Saving…" : dirty ? "Pending changes" : "Saved"}
             </div>
@@ -449,7 +481,7 @@ export default function LessonBuilderPage() {
                 <div className="text-xs text-slate-500">{flashcardRows.length} cards</div>
               </div>
               <p className="text-sm text-slate-600">Слова используются далее в произношении и заданиях.</p>
-              <FlashcardsTable cards={flashcardRows} onChange={updateFlashcards} />
+              <FlashcardsTable cards={flashcardRows} onChange={updateFlashcards} onUpload={handleUpload} />
             </CardContent>
           </Card>
 
@@ -475,6 +507,22 @@ export default function LessonBuilderPage() {
               <TasksEditor questions={taskQuestions} onChange={updateTasks} onUpload={handleUpload} />
             </CardContent>
           </Card>
+
+          {freeWritingBlock ? (
+            <Card className="bg-white shadow-sm">
+              <CardContent className="space-y-3 p-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle>✍️ Free writing</CardTitle>
+                  <span className="text-xs text-slate-500">Gemini check</span>
+                </div>
+                <p className="text-sm text-slate-600">Финальный блок: студент пишет ответ, Gemini возвращает оценку/фидбек.</p>
+                <FreeWritingEditor
+                  content={freeWritingBlock.content || freeWritingBlock.data || {}}
+                  onChange={(content) => handleBlockChange(freeWritingBlock.id, content)}
+                />
+              </CardContent>
+            </Card>
+          ) : null}
 
           {legacyBlocks.length ? (
             <Card className="bg-white shadow-sm">
@@ -531,12 +579,46 @@ export default function LessonBuilderPage() {
   );
 }
 
-function FlashcardsTable({ cards, onChange }: { cards: FlashcardRow[]; onChange: (cards: FlashcardRow[]) => void }) {
+function FlashcardsTable({
+  cards,
+  onChange,
+  onUpload,
+}: {
+  cards: FlashcardRow[];
+  onChange: (cards: FlashcardRow[]) => void;
+  onUpload: EditorProps["onUpload"];
+}) {
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   const updateField = (idx: number, field: keyof FlashcardRow, value: string) => {
     const next = [...cards];
     next[idx] = { ...next[idx], [field]: value };
     onChange(next);
   };
+
+  const handleAudioUpload = (idx: number, file: File) => {
+    setUploadError(null);
+    setUploadingIdx(idx);
+    onUpload("audio", file)
+      .then((resp) => {
+        const raw = resp.url || "";
+        const resolved = resolveMediaUrl(raw);
+        updateField(idx, "audio_path", raw);
+        updateField(idx, "audio_url", raw);
+        try {
+          const audio = new Audio(resolved);
+          audio.play().catch(() => {});
+        } catch {
+          // ignore autoplay errors
+        }
+      })
+      .catch((err: any) => {
+        setUploadError(err?.response?.data?.detail || err?.message || "Не удалось загрузить аудио");
+      })
+      .finally(() => setUploadingIdx(null));
+  };
+
   return (
     <div className="space-y-3">
       {cards.map((card, idx) => (
@@ -571,11 +653,26 @@ function FlashcardsTable({ cards, onChange }: { cards: FlashcardRow[]; onChange:
               value={card.image_url || ""}
               onChange={(e) => updateField(idx, "image_url", e.target.value)}
             />
-            <Input
-              placeholder="Audio URL"
-              value={card.audio_url || ""}
-              onChange={(e) => updateField(idx, "audio_url", e.target.value)}
-            />
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/webm"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleAudioUpload(idx, file);
+                  }}
+                />
+                {uploadingIdx === idx ? <span className="text-xs text-slate-500">Загружаю...</span> : null}
+              </div>
+              {(card.audio_path || card.audio_url) && (
+                <audio
+                  controls
+                  src={resolveMediaUrl(card.audio_path || card.audio_url || "")}
+                  className="w-full"
+                />
+              )}
+            </div>
           </div>
         </div>
       ))}
@@ -584,12 +681,13 @@ function FlashcardsTable({ cards, onChange }: { cards: FlashcardRow[]; onChange:
         onClick={() =>
           onChange([
             ...cards,
-            { word: "", translation: "", example_sentence: "", image_url: "", audio_url: "", id: `new-${Date.now()}` },
+            { word: "", translation: "", example_sentence: "", image_url: "", audio_path: "", audio_url: "", id: `new-${Date.now()}` },
           ])
         }
       >
         + Добавить слово
       </Button>
+      {uploadError ? <div className="text-xs text-red-500">{uploadError}</div> : null}
     </div>
   );
 }
@@ -608,7 +706,7 @@ function PronunciationReadonly({ items }: { items: FlashcardRow[] }) {
             {item.example_sentence ? <div className="text-xs text-slate-500">{item.example_sentence}</div> : null}
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-500">
-            {item.audio_url ? <span>🎧</span> : null}
+            {(item.audio_path || item.audio_url) ? <span>🎧</span> : null}
             {item.image_url ? <span>🖼</span> : null}
           </div>
         </div>
@@ -626,6 +724,9 @@ function TasksEditor({
   onChange: (questions: TaskQuestion[]) => void;
   onUpload: EditorProps["onUpload"];
 }) {
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   const addQuestion = (type: string) => {
     const template: TaskQuestion = { question: "", type, options: type === "single" ? ["", ""] : [], correct_answer: [] };
     if (type === "audio_repeat") template.options = [];
@@ -678,20 +779,39 @@ function TasksEditor({
               onChange={(e) => updateQuestion(idx, { question: e.target.value })}
             />
             {type === "audio_repeat" ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  placeholder="Audio URL"
-                  value={q.audio_url || ""}
-                  onChange={(e) => updateQuestion(idx, { audio_url: e.target.value })}
-                />
-                <input
-                  type="file"
-                  accept="audio/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) onUpload("audio", file).then((resp) => updateQuestion(idx, { audio_url: resp.url }));
-                  }}
-                />
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="file"
+                    accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/webm"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setUploadError(null);
+                      setUploadingIdx(idx);
+                      onUpload("audio", file)
+                        .then((resp) => {
+                          const raw = resp.url || "";
+                          const resolved = resolveMediaUrl(raw);
+                          updateQuestion(idx, { audio_path: raw, audio_url: raw });
+                          try {
+                            const audio = new Audio(resolved);
+                            audio.play().catch(() => {});
+                          } catch {
+                            // ignore autoplay errors
+                          }
+                        })
+                        .catch((err: any) => setUploadError(err?.response?.data?.detail || err?.message || "Не удалось загрузить аудио"))
+                        .finally(() => setUploadingIdx(null));
+                    }}
+                  />
+                  {uploadingIdx === idx ? <span className="text-xs text-slate-500">Загружаю...</span> : null}
+                </div>
+                {(q.audio_path || q.audio_url) && (
+                  <audio controls src={resolveMediaUrl(q.audio_path || q.audio_url || "")} className="w-full">
+                    Ваш браузер не поддерживает аудио.
+                  </audio>
+                )}
               </div>
             ) : null}
             {type === "single" ? (
@@ -743,6 +863,7 @@ function TasksEditor({
           </div>
         );
       })}
+      {uploadError ? <div className="text-xs text-red-500">{uploadError}</div> : null}
     </div>
   );
 }
@@ -771,16 +892,17 @@ function LessonPreview({ lesson, blocks, studentUrl }: { lesson: Lesson | null; 
 
 function PreviewBlock({ block }: { block: LessonBlock }) {
   const content = block.content || block.data || {};
-const titleMap: Record<string, string> = {
-  video: "Video",
-  theory: "Theory",
-  audio_theory: "Audio + Theory",
-  flashcards: "Flashcards",
-  pronunciation: "Pronunciation",
-  theory_quiz: "Quiz",
+  const titleMap: Record<string, string> = {
+    video: "Video",
+    theory: "Theory",
+    audio_theory: "Audio + Theory",
+    flashcards: "Flashcards",
+    pronunciation: "Pronunciation",
+    theory_quiz: "Quiz",
     quiz: "Quiz",
     audio_task: "Audio Task",
     lesson_test: "Lesson Test",
+    free_writing: "Free writing",
   };
   return (
     <div className="rounded-lg bg-white p-3 shadow-inner">
@@ -807,6 +929,7 @@ function BlockEditor({ block, onChange, onUpload }: EditorProps) {
   if (block.type === "audio_task") return <AudioTaskEditor content={content} onChange={onChange} onUpload={onUpload} />;
   if (block.type === "theory_quiz" || block.type === "quiz") return <QuizEditor content={content} onChange={onChange} />;
   if (block.type === "lesson_test") return <TestEditor content={content} onChange={onChange} />;
+  if (block.type === "free_writing") return <FreeWritingEditor content={content} onChange={onChange} />;
   return <div className="text-sm text-slate-500">Unsupported block</div>;
 }
 
@@ -885,21 +1008,44 @@ function AudioTheoryEditor({
   onChange: (c: Record<string, any>) => void;
   onUpload: EditorProps["onUpload"];
 }) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFile = (file: File) => {
+    setError(null);
+    setUploading(true);
+    onUpload("audio", file)
+      .then((resp) => {
+        const raw = resp.url || "";
+        const resolved = resolveMediaUrl(raw);
+        onChange({ ...content, audio_path: raw, audio_url: raw });
+        try {
+          new Audio(resolved).play().catch(() => {});
+        } catch {
+          /* ignore */
+        }
+      })
+      .catch((err: any) => setError(err?.response?.data?.detail || err?.message || "Не удалось загрузить аудио"))
+      .finally(() => setUploading(false));
+  };
+
   return (
     <div className="space-y-3">
-      <Input
-        placeholder="Audio URL"
-        value={content.audio_url || ""}
-        onChange={(e) => onChange({ ...content, audio_url: e.target.value })}
-      />
       <input
         type="file"
-        accept="audio/*"
+        accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/webm"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) onUpload("audio", file).then((resp) => onChange({ ...content, audio_url: resp.url || content.audio_url }));
+          if (file) handleFile(file);
         }}
       />
+      {uploading ? <div className="text-xs text-slate-500">Загружаю...</div> : null}
+      {error ? <div className="text-xs text-red-500">{error}</div> : null}
+      {(content.audio_path || content.audio_url) && (
+        <audio controls src={resolveMediaUrl(content.audio_path || content.audio_url)} className="w-full">
+          Ваш браузер не поддерживает аудио.
+        </audio>
+      )}
       <Textarea
         placeholder="Markdown"
         rows={6}
@@ -971,21 +1117,44 @@ function AudioEditor({
   onChange: (c: Record<string, any>) => void;
   onUpload: EditorProps["onUpload"];
 }) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFile = (file: File) => {
+    setError(null);
+    setUploading(true);
+    onUpload("audio", file)
+      .then((resp) => {
+        const raw = resp.url || "";
+        const resolved = resolveMediaUrl(raw);
+        onChange({ ...content, audio_path: raw, audio_url: raw });
+        try {
+          new Audio(resolved).play().catch(() => {});
+        } catch {
+          /* ignore */
+        }
+      })
+      .catch((err: any) => setError(err?.response?.data?.detail || err?.message || "Не удалось загрузить аудио"))
+      .finally(() => setUploading(false));
+  };
+
   return (
     <div className="space-y-3">
-      <Input
-        placeholder="Audio URL"
-        value={content.audio_url || ""}
-        onChange={(e) => onChange({ ...content, audio_url: e.target.value })}
-      />
       <input
         type="file"
-        accept="audio/*"
+        accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/webm"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) onUpload("audio", file).then((resp) => onChange({ ...content, audio_url: resp.url || content.audio_url }));
+          if (file) handleFile(file);
         }}
       />
+      {uploading ? <div className="text-xs text-slate-500">Загружаю...</div> : null}
+      {error ? <div className="text-xs text-red-500">{error}</div> : null}
+      {(content.audio_path || content.audio_url) && (
+        <audio controls src={resolveMediaUrl(content.audio_path || content.audio_url)} className="w-full">
+          Ваш браузер не поддерживает аудио.
+        </audio>
+      )}
       <Textarea
         placeholder="Transcript"
         rows={3}
@@ -998,6 +1167,36 @@ function AudioEditor({
         value={content.translation || ""}
         onChange={(e) => onChange({ ...content, translation: e.target.value })}
       />
+    </div>
+  );
+}
+
+function FreeWritingEditor({ content, onChange }: { content: Record<string, any>; onChange: (c: Record<string, any>) => void }) {
+  return (
+    <div className="space-y-3">
+      <Input
+        placeholder="Вопрос / задание"
+        value={content.question || ""}
+        onChange={(e) => onChange({ ...content, question: e.target.value })}
+      />
+      <Textarea
+        placeholder="Критерии / rubric (опционально)"
+        rows={3}
+        value={content.rubric || ""}
+        onChange={(e) => onChange({ ...content, rubric: e.target.value })}
+      />
+      <div className="flex items-center gap-3">
+        <label className="text-xs font-semibold text-slate-600">Язык проверки</label>
+        <select
+          className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm"
+          value={content.language || "kk"}
+          onChange={(e) => onChange({ ...content, language: e.target.value })}
+        >
+          <option value="kk">Kazakh (kk)</option>
+          <option value="ru">Russian (ru)</option>
+          <option value="en">English (en)</option>
+        </select>
+      </div>
     </div>
   );
 }
@@ -1215,22 +1414,45 @@ function AudioTaskEditor({
   onUpload: EditorProps["onUpload"];
 }) {
   const options: string[] = content.options || [];
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFile = (file: File) => {
+    setError(null);
+    setUploading(true);
+    onUpload("audio", file)
+      .then((resp) => {
+        const raw = resp.url || "";
+        const resolved = resolveMediaUrl(raw);
+        onChange({ ...content, audio_path: raw, audio_url: raw });
+        try {
+          new Audio(resolved).play().catch(() => {});
+        } catch {
+          /* ignore */
+        }
+      })
+      .catch((err: any) => setError(err?.response?.data?.detail || err?.message || "Не удалось загрузить аудио"))
+      .finally(() => setUploading(false));
+  };
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <Input
-          placeholder="Audio URL"
-          value={content.audio_url || ""}
-          onChange={(e) => onChange({ ...content, audio_url: e.target.value })}
-        />
+      <div className="space-y-2">
         <input
           type="file"
-          accept="audio/*"
+          accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/webm"
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) onUpload("audio", file).then((resp) => onChange({ ...content, audio_url: resp.url || content.audio_url }));
+            if (file) handleFile(file);
           }}
         />
+        {uploading ? <div className="text-xs text-slate-500">Загружаю...</div> : null}
+        {error ? <div className="text-xs text-red-500">{error}</div> : null}
+        {(content.audio_path || content.audio_url) && (
+          <audio controls src={resolveMediaUrl(content.audio_path || content.audio_url)} className="w-full">
+            Ваш браузер не поддерживает аудио.
+          </audio>
+        )}
       </div>
       <Textarea
         placeholder="Transcript"

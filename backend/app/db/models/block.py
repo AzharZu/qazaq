@@ -15,6 +15,7 @@ BLOCK_TYPE_CHOICES = (
     "flashcards",
     "pronunciation",
     "audio_task",
+    "free_writing",
     # Compatibility/legacy buckets
     "quiz",
     "example",
@@ -64,6 +65,7 @@ class AudioTask(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     block_id = Column(Integer, ForeignKey("lesson_blocks.id"), nullable=False, unique=True)
+    audio_path = Column(String, nullable=True)
     audio_url = Column(String, nullable=True)
     transcript = Column(String, nullable=True)
     options = Column(JSON, nullable=True)

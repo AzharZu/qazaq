@@ -32,7 +32,13 @@ export default function LessonRenderer({ blocks }: { blocks: LessonBlock[] }) {
           case "image":
             return <ImageBlock key={idx} url={content?.image_url || block.image_url || ""} caption={content?.explanation || block.title} />;
           case "audio":
-            return <AudioBlock key={idx} url={content?.audio_url || block.audio_url || ""} transcript={content?.transcript || content?.translation} />;
+            return (
+              <AudioBlock
+                key={idx}
+                url={content?.audio_path || content?.audio_url || block.audio_path || block.audio_url || ""}
+                transcript={content?.transcript || content?.translation}
+              />
+            );
           case "flashcards":
             return <FlashcardsBlock key={idx} cards={content?.cards || block.cards || []} />;
           case "lesson_test":

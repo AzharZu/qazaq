@@ -1,4 +1,4 @@
-from . import auth, autochecker, blocks, courses, lessons, modules, placement, placement_admin, progress, vocabulary, users, debug, admin_lessons, admin_blocks, upload, audio_task, pronunciation
+from . import auth, autochecker, blocks, courses, lessons, modules, placement, placement_admin, progress, vocabulary, users, debug, admin_lessons, admin_blocks, admin_courses, admin_modules, upload, audio_task, pronunciation, llm
 
 __all__ = [
     "auth",
@@ -13,4 +13,6 @@ __all__ = [
     "audio_task",
     "pronunciation",
     "admin_blocks",
+    "admin_courses",
+    "admin_modules",
 ]

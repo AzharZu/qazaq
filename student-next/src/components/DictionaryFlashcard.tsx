@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { useMemo, useState } from "react";
 import { DictionaryWord } from "@/lib/api/dictionary";
+import { resolveMediaUrl } from "@/lib/media";
 
 type Props = {
   word: DictionaryWord;
@@ -22,8 +23,9 @@ export default function DictionaryFlashcard({ word, index, total, onPrev, onNext
   }, [word.progress]);
 
   const playAudio = () => {
-    if (word.audio_url) {
-      const audio = new Audio(word.audio_url);
+    const src = resolveMediaUrl(word.audio_path || word.audio_url);
+    if (src) {
+      const audio = new Audio(src);
       audio.play().catch((err) => console.warn("audio play error", err));
     } else if (typeof window !== "undefined") {
       const utter = new SpeechSynthesisUtterance(word.word);

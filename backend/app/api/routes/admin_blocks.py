@@ -42,6 +42,7 @@ def _sync_special_block(block: models.LessonBlock, content: dict, db: Session) -
         existing = getattr(block, "audio_task", None)
         if not existing:
             existing = models.AudioTask(block_id=block.id)
+        existing.audio_path = content.get("audio_path") or content.get("audio_url")
         existing.audio_url = content.get("audio_url")
         existing.transcript = content.get("transcript")
         existing.options = content.get("options") or []

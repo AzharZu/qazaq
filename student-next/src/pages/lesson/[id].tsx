@@ -7,12 +7,14 @@ import { lessonsApi } from "@/lib/api/lessons";
 import { LessonDetail, LessonBlock } from "@/types/lesson";
 import { useProgressStore } from "@/store/progressStore";
 import { useDictionaryStore } from "@/store/dictionaryStore";
+import VideoPlayer from "@/components/lesson/VideoPlayer";
 
 const STEP_DEFS: { key: string; label: string; types: string[] }[] = [
   { key: "theory", label: "Теория", types: ["theory", "video", "audio_theory"] },
   { key: "flashcards", label: "Флеш-карточки", types: ["flashcards", "flashcard"] },
   { key: "pronunciation", label: "Произношение", types: ["pronunciation"] },
   { key: "tasks", label: "Задания", types: ["quiz", "theory_quiz", "lesson_test", "audio_task", "audio", "image"] },
+  { key: "free_writing", label: "Свободное письмо", types: ["free_writing"] },
 ];
 
 export default function LessonPage() {
@@ -93,6 +95,11 @@ export default function LessonPage() {
     }
   };
   const blockProgress = blocks.length ? Math.round((currentIndex / blocks.length) * 100) : 0;
+  const hasVideoBlock = useMemo(() => blocks.some((b) => normalizeType(b) === "video"), [blocks, normalizeType]);
+  const lessonVideoUrl = useMemo(() => {
+    const videoBlock = blocks.find((b) => normalizeType(b) === "video");
+    return (videoBlock as any)?.video_url || (videoBlock as any)?.content?.video_url || null;
+  }, [blocks, normalizeType]);
 
   const finishLesson = async () => {
     if (!id) return;
@@ -159,6 +166,12 @@ export default function LessonPage() {
         )}
       </div>
 
+      {!hasVideoBlock && lessonVideoUrl ? (
+        <div className="rounded-2xl bg-panel p-4 shadow-card">
+          <VideoPlayer url={lessonVideoUrl} />
+        </div>
+      ) : null}
+
       <div className="rounded-2xl bg-panel p-4 shadow-card">
         <div className="flex flex-wrap gap-3">
           {STEP_DEFS.map((step, idx) => {
@@ -214,6 +227,7 @@ export default function LessonPage() {
           onComplete={handleCompleteBlock}
           preview={previewMode}
           onGoToStep={goToStep}
+          lessonLanguage={lessonDetail.lesson.language || "kk"}
         />
       ) : (
         <div className="rounded-2xl bg-panel p-6 shadow-card">

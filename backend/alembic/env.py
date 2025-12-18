@@ -6,6 +6,15 @@ from pathlib import Path
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 
+# Load .env file if it exists
+try:
+    from dotenv import load_dotenv
+    env_file = Path(__file__).resolve().parents[1] / ".env"
+    if env_file.exists():
+        load_dotenv(env_file)
+except ImportError:
+    pass
+
 BASE_DIR = Path(__file__).resolve().parents[1]
 sys.path.append(str(BASE_DIR))
 

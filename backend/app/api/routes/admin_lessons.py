@@ -48,6 +48,7 @@ def _sync_special_block(block: models.LessonBlock, content: dict, db: Session) -
         existing = getattr(block, "audio_task", None)
         if not existing:
             existing = models.AudioTask(block_id=block.id)
+        existing.audio_path = content.get("audio_path") or content.get("audio_url")
         existing.audio_url = content.get("audio_url")
         existing.transcript = content.get("transcript")
         existing.options = content.get("options") or []
@@ -70,12 +71,17 @@ def _normalize_orders(db: Session, lesson: models.Lesson) -> None:
 
 @router.get("")
 def list_lessons(module_id: int | None = None, db: Session = Depends(deps.current_db), user=Depends(deps.require_admin)):
+    """Get lessons, optionally filtered by module_id."""
     query = (
         db.query(models.Lesson)
         .options(selectinload(models.Lesson.module))
         .filter(models.Lesson.is_deleted.is_(False))
     )
-    if module_id:
+    if module_id is not None:
+        # Validate module exists
+        module = db.get(models.Module, module_id)
+        if not module:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Module not found")
         query = query.filter(models.Lesson.module_id == module_id)
     lessons = sorted(query.all(), key=lambda l: l.order)
     return [serialize_lesson(l) for l in lessons]
@@ -86,6 +92,8 @@ def create_lesson(payload: LessonCreate, db: Session = Depends(deps.current_db),
     module = db.get(models.Module, payload.module_id)
     if not module:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Module not found")
+    if payload.video_type and payload.video_type not in {"youtube", "vimeo", "file"}:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unsupported video_type")
     siblings = [l for l in module.lessons if not getattr(l, "is_deleted", False)]
     order = payload.order or (len(siblings) + 1)
     lesson = models.Lesson(
@@ -99,6 +107,8 @@ def create_lesson(payload: LessonCreate, db: Session = Depends(deps.current_db),
         language=payload.language,
         order=order,
         blocks_order=[],
+        video_type=payload.video_type or "youtube",
+        video_url=payload.video_url,
     )
     db.add(lesson)
     db.commit()
@@ -123,6 +133,8 @@ def get_lesson(lesson_id: int, db: Session = Depends(deps.current_db), user=Depe
         "difficulty": lesson.difficulty,
         "estimated_time": lesson.estimated_time,
         "blocks_order": lesson.blocks_order or [],
+        "video_type": lesson.video_type,
+        "video_url": lesson.video_url,
         "blocks": blocks,
     }
 
@@ -133,7 +145,22 @@ def update_lesson(lesson_id: int, payload: LessonUpdate, db: Session = Depends(d
     if not lesson:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found")
 
-    for field in ("title", "description", "status", "difficulty", "estimated_time", "age_group", "language", "version", "order"):
+    if payload.video_type and payload.video_type not in {"youtube", "vimeo", "file"}:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unsupported video_type")
+
+    for field in (
+        "title",
+        "description",
+        "status",
+        "difficulty",
+        "estimated_time",
+        "age_group",
+        "language",
+        "version",
+        "order",
+        "video_type",
+        "video_url",
+    ):
         value = getattr(payload, field)
         if value is not None:
             setattr(lesson, field, value)
@@ -366,7 +393,7 @@ def validate_lesson(lesson_id: int, db: Session = Depends(deps.current_db), user
     else:
         if any(not c.get("translation") for c in cards):
             errors.append("FLASHCARD_MISSING_TRANSLATION")
-        if any(not c.get("audio_url") for c in cards):
+        if any(not (c.get("audio_path") or c.get("audio_url")) for c in cards):
             warnings.append("WORDS_WITHOUT_AUDIO")
         if any(not c.get("image_url") for c in cards):
             warnings.append("WORDS_WITHOUT_IMAGE")
@@ -413,7 +440,7 @@ def reorder_blocks(lesson_id: int, payload: ReorderBlocks, db: Session = Depends
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found")
     blocks = [b for b in ordered_blocks(lesson) if not getattr(b, "is_deleted", False)]
     # Canonical flow: only flashcards and task-like blocks are reorderable; fixed ones keep their place.
-    reorderable = [b for b in blocks if b.block_type in {"flashcards", "audio_task", "quiz", "theory_quiz", "lesson_test"}]
+    reorderable = [b for b in blocks if b.block_type in {"flashcards", "audio_task", "quiz", "theory_quiz", "lesson_test", "free_writing"}]
     reorderable_ids = [b.id for b in reorderable]
     desired_ids = [bid for bid in payload.order if bid in reorderable_ids]
     if set(desired_ids) != set(reorderable_ids) or len(desired_ids) != len(reorderable_ids):

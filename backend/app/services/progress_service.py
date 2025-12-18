@@ -28,6 +28,9 @@ def serialize_lesson(lesson: models.Lesson) -> dict:
         "difficulty": getattr(lesson, "difficulty", None),
         "estimated_time": getattr(lesson, "estimated_time", None),
         "blocks_order": lesson.blocks_order or [],
+        "video_type": getattr(lesson, "video_type", None),
+        "video_url": getattr(lesson, "video_url", None),
+        "language": getattr(lesson, "language", "kk"),
     }
 
 
@@ -66,6 +69,7 @@ def _serialize_flashcard(card: models.Flashcard) -> dict:
         "front": clean_encoding(card.front),
         "back": clean_encoding(card.back),
         "image_url": card.image_url,
+        "audio_path": getattr(card, "audio_path", None),
         "audio_url": card.audio_url,
         "order": card.order,
     }
@@ -101,6 +105,7 @@ def _collect_flashcards(block_payload: dict | None, lesson: models.Lesson) -> li
                     "example_sentence": example,
                     "example": example,
                     "image_url": card.get("image_url") or card.get("image"),
+                    "audio_path": card.get("audio_path"),
                     "audio_url": card.get("audio_url"),
                     "order": card.get("order") or idx + 1,
                 }
@@ -120,6 +125,7 @@ def _pronunciation_from_cards(cards: list[dict]) -> list[dict]:
                     "translation": card.get("translation") or card.get("back"),
                     "example": card.get("example") or card.get("example_sentence"),
                     "image_url": card.get("image_url") or card.get("image"),
+                    "audio_path": card.get("audio_path"),
                     "audio_url": card.get("audio_url"),
                     "order": card.get("order") or idx + 1,
                 }
@@ -142,11 +148,13 @@ def normalize_block(block: models.LessonBlock, lesson: models.Lesson) -> dict:
     if block.block_type == "audio_theory":
         # Normalize to unified structure while keeping audio + markdown
         payload = {
+            "audio_path": payload.get("audio_path"),
             "audio_url": payload.get("audio_url"),
             "markdown": payload.get("markdown"),
         }
     if block.block_type in {"audio_task", "audio-task"} and not payload and getattr(block, "audio_task", None):
         payload = {
+            "audio_path": getattr(block.audio_task, "audio_path", None),
             "audio_url": block.audio_task.audio_url,
             "transcript": block.audio_task.transcript,
             "options": block.audio_task.options or [],
@@ -166,9 +174,9 @@ def normalize_block(block: models.LessonBlock, lesson: models.Lesson) -> dict:
 
     if block.block_type == "video":
         normalized["content"] = {
-            "video_url": cleaned.get("video_url") or content.get("video_url"),
-            "thumbnail_url": cleaned.get("thumbnail_url"),
-            "caption": clean_encoding(cleaned.get("caption")),
+            "video_url": cleaned.get("video_url") or content.get("video_url") or content.get("url"),
+            "thumbnail_url": cleaned.get("thumbnail_url") or content.get("thumbnail_url"),
+            "caption": clean_encoding(cleaned.get("caption") or content.get("caption")),
         }
     elif block.block_type == "theory":
         normalized["content"] = {
@@ -176,13 +184,14 @@ def normalize_block(block: models.LessonBlock, lesson: models.Lesson) -> dict:
             "rich_text": clean_encoding(cleaned.get("rich_text") or cleaned.get("markdown") or ""),
             "highlights": clean_encoding(cleaned.get("highlights") or []),
             "examples": clean_encoding(cleaned.get("examples") or []),
-            "video_url": cleaned.get("video_url") or content.get("video_url"),
+            "video_url": cleaned.get("video_url") or content.get("video_url") or content.get("url"),
             "thumbnail_url": cleaned.get("thumbnail_url") or content.get("thumbnail_url"),
         }
     elif block.block_type == "audio_theory":
         normalized["type"] = "audio_theory"
         normalized["block_type"] = "audio_theory"
         normalized["content"] = {
+            "audio_path": cleaned.get("audio_path") or content.get("audio_path"),
             "audio_url": cleaned.get("audio_url") or content.get("audio_url"),
             "markdown": clean_encoding(cleaned.get("markdown") or ""),
         }
@@ -194,6 +203,7 @@ def normalize_block(block: models.LessonBlock, lesson: models.Lesson) -> dict:
         }
     elif block.block_type == "audio":
         normalized["content"] = {
+            "audio_path": cleaned.get("audio_path") or content.get("audio_path"),
             "audio_url": cleaned.get("audio_url") or content.get("audio_url"),
             "transcript": clean_encoding(cleaned.get("transcript") or ""),
             "translation": clean_encoding(cleaned.get("translation") or ""),
@@ -202,7 +212,8 @@ def normalize_block(block: models.LessonBlock, lesson: models.Lesson) -> dict:
         normalized["type"] = "audio_task"
         normalized["block_type"] = "audio_task"
         normalized["content"] = {
-            "audio_url": cleaned.get("audio_url") or content.get("audio_url"),
+            "audio_path": cleaned.get("audio_path") or content.get("audio_path") or getattr(block.audio_task, "audio_path", None),
+            "audio_url": cleaned.get("audio_url") or content.get("audio_url") or getattr(block.audio_task, "audio_url", None),
             "transcript": clean_encoding(cleaned.get("transcript") or ""),
             "options": cleaned.get("options") or [],
             # do not expose correct_answer to students
@@ -226,6 +237,12 @@ def normalize_block(block: models.LessonBlock, lesson: models.Lesson) -> dict:
         normalized["content"] = cleaned or content
     elif block.block_type == "lesson_test":
         normalized["content"] = cleaned
+    elif block.block_type == "free_writing":
+        normalized["content"] = {
+            "question": clean_encoding(cleaned.get("question") or content.get("question") or ""),
+            "rubric": clean_encoding(cleaned.get("rubric") or content.get("rubric") or ""),
+            "language": cleaned.get("language") or content.get("language") or getattr(lesson, "language", None),
+        }
     else:
         normalized["content"] = clean_encoding(cleaned or content)
 

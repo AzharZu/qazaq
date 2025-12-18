@@ -4,6 +4,8 @@ import { Button } from "../ui/button";
 
 const links = [
   { to: "/admin/dashboard", label: "Dashboard" },
+  { to: "/admin/lesson-builder", label: "Lesson Builder" },
+  { to: "/admin/autochecker", label: "AutoChecker" },
   { to: "/admin/courses", label: "Courses" },
   { to: "/admin/lessons", label: "Lessons" },
   { to: "/admin/vocabulary", label: "Vocabulary" },

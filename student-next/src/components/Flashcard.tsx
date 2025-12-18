@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import client from "@/lib/api/client";
 import { Flashcard as FlashcardType } from "@/types/lesson";
+import { resolveMediaUrl } from "@/lib/media";
 
 type FlashcardProps = {
   cards: FlashcardType[];
@@ -25,6 +26,19 @@ export default function Flashcard({ cards, onComplete, title, ctaLabel, onCta }:
 
   const speak = () => {
     if (!card) return;
+    const src = resolveMediaUrl(card.audio_path || card.audio_url);
+    if (src) {
+      const audio = new Audio(src);
+      audio.play().catch(() => {
+        const text = flipped ? card.translation || card.back || "" : card.word || card.front || "";
+        if (typeof window !== "undefined" && text) {
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = "kk-KZ";
+          window.speechSynthesis?.speak(utterance);
+        }
+      });
+      return;
+    }
     const text = flipped ? card.translation || card.back || "" : card.word || card.front || "";
     if (typeof window === "undefined" || !text) return;
     const utterance = new SpeechSynthesisUtterance(text);

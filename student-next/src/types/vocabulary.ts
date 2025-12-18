@@ -2,6 +2,7 @@ export interface VocabularyWord {
   id: number;
   word: string;
   translation: string;
+  audio_path?: string | null;
   audio_url?: string | null;
   example_sentence?: string;
   image_url?: string | null;

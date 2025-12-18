@@ -123,6 +123,8 @@ def lesson_detail(lesson_id: int, request: Request, db: Session = Depends(deps.c
             "difficulty": lesson.difficulty,
             "estimated_time": lesson.estimated_time,
             "language": lesson.language,
+            "video_type": getattr(lesson, "video_type", None),
+            "video_url": getattr(lesson, "video_url", None),
             "blocks_order": lesson.blocks_order or [],
             "module": {
                 "id": lesson.module.id,
@@ -166,6 +168,7 @@ def lesson_flashcards(lesson_id: int, request: Request, db: Session = Depends(de
                 "translation": card.back,
                 "example": card.back,
                 "image_url": card.image_url,
+                "audio_path": getattr(card, "audio_path", None),
                 "audio_url": card.audio_url,
                 "order": card.order,
                 "front": card.front,
@@ -198,6 +201,7 @@ def lesson_pronunciation(lesson_id: int, request: Request, db: Session = Depends
                 "translation": card.back,
                 "example": f"{card.front} — {card.back}",
                 "image_url": card.image_url,
+                "audio_path": getattr(card, "audio_path", None),
                 "audio_url": card.audio_url,
             }
         )

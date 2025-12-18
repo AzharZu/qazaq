@@ -9,8 +9,10 @@ export type Course = {
 export type Module = {
   id: number;
   course_id: number;
-  title: string;
+  name: string;
   order: number;
+  description?: string;
+  lessons?: Lesson[];
 };
 
 export type BlockType =
@@ -24,7 +26,8 @@ export type BlockType =
   | "image"
   | "audio"
   | "flashcards"
-  | "pronunciation";
+  | "pronunciation"
+  | "free_writing";
 
 export type LessonBlock = {
   id: number;
@@ -47,12 +50,15 @@ export type Lesson = {
   language?: string;
   blocks_order?: number[];
   blocks?: LessonBlock[];
+  video_type?: string; // youtube, vimeo, file
+  video_url?: string;
 };
 
 export type VocabularyEntry = {
   id: number;
   word: string;
   translation: string;
+  audio_path?: string;
   audio_url?: string;
 };
 

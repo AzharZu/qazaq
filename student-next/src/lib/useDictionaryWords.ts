@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { useDictionaryStore } from "@/store/dictionaryStore";
+import { resolveMediaUrl } from "./media";
 
 export type DictionaryWordView = { id: number | string; wordKz: string; translationRu: string; exampleRu?: string; audioUrl?: string };
 
@@ -20,7 +21,7 @@ export const useDictionaryWords = (opts?: { lessonId?: number | string }) => {
           wordKz: w.word || w.translation || "",
           translationRu: w.translation || w.word || "",
           exampleRu: example,
-          audioUrl: w.audio_url || undefined,
+          audioUrl: resolveMediaUrl((w as any).audio_path || w.audio_url || undefined),
         };
       }),
     [words]

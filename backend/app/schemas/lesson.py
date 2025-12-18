@@ -12,6 +12,7 @@ class FlashcardOut(BaseModel):
     front: str
     back: str
     image_url: Optional[str] = None
+    audio_path: Optional[str] = None
     audio_url: Optional[str] = None
     order: int
 
@@ -42,6 +43,8 @@ class LessonSummary(BaseModel):
     blocks_order: List[int] | None = None
     is_deleted: bool = False
     description: Optional[str] = None
+    video_type: Optional[str] = None
+    video_url: Optional[str] = None
 
 
 class LessonOut(LessonSummary):
@@ -77,6 +80,8 @@ class LessonCreate(BaseModel):
     age_group: Optional[str] = None
     language: str = "kk"
     order: Optional[int] = None
+    video_type: Optional[str] = "youtube"  # youtube, vimeo, file
+    video_url: Optional[str] = None
 
 
 class LessonUpdate(BaseModel):
@@ -90,6 +95,8 @@ class LessonUpdate(BaseModel):
     version: Optional[int] = None
     blocks_order: Optional[List[int]] = None
     order: Optional[int] = None
+    video_type: Optional[str] = None  # youtube, vimeo, file
+    video_url: Optional[str] = None
 
 
 __all__ = [

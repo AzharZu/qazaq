@@ -46,12 +46,17 @@ def _write_file(target: Path, data: bytes) -> None:
         f.write(data)
 
 
-def validate_audio_file(file: UploadFile) -> None:
+def validate_audio_file(file: UploadFile, size_bytes: int | None = None, max_mb: int = 15) -> None:
     mime = file.content_type or mimetypes.guess_type(file.filename or "")[0] or ""
     if mime and mime.lower() not in ALLOWED_AUDIO_MIMES:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             detail=f"Unsupported audio format {mime}",
+        )
+    if size_bytes is not None and size_bytes > max_mb * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Audio file is too large (>{max_mb}MB)",
         )
 
 

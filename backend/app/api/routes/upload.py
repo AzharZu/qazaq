@@ -29,8 +29,8 @@ async def upload_image(file: UploadFile = File(...), user=Depends(deps.require_a
 
 @router.post("/audio")
 async def upload_audio(file: UploadFile = File(...), user=Depends(deps.require_admin)):
-    validate_audio_file(file)
     data = await file.read()
+    validate_audio_file(file, len(data))
     stored = store_upload("audio", file, data)
     return {"url": stored["url"], "filename": stored["filename"]}
 

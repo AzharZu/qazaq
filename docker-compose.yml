@@ -9,62 +9,112 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+      - ./docker-entrypoint-initdb.d/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U qazaq_user -d qazaq_db"]
       interval: 5s
-      timeout: 5s
-      retries: 10
+      timeout: 3s
+      retries: 5
     networks:
       - qazaq_network
+    restart: unless-stopped
 
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: ./backend/Dockerfile
     container_name: qazaq_backend
     env_file:
       - ./backend/.env
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://qazaq_user:qazaq_pass@postgres:5432/qazaq_db"
+      UPLOAD_ROOT: /app/uploads
+      CDN_BASE_URL: /uploads
+      ALLOWED_ORIGINS: '["http://localhost","http://localhost:80","http://127.0.0.1","http://localhost:3000","http://127.0.0.1:3000","http://localhost:3002","http://127.0.0.1:3002"]'
     depends_on:
       postgres:
         condition: service_healthy
-    environment:
-      DATABASE_URL: "postgresql+asyncpg://qazaq_user:qazaq_pass@postgres:5432/qazaq_db"
-      DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_USER: qazaq_user
-      DB_NAME: qazaq_db
-      ADMIN_EMAILS: "admin@example.com"
-      ALLOWED_ORIGINS: '["http://localhost:3002","http://127.0.0.1:3002"]'
     ports:
       - "8000:8000"
     volumes:
-      - uploads:/app/uploads
-    command: ["bash", "start.sh"]
+      - ./uploads:/app/uploads
+      # Mount code for development (comment out in production)
+      - ./backend/app:/app/app:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8000/docs >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 5
+      start_period: 20s
     networks:
       - qazaq_network
+    restart: unless-stopped
 
-  admin_frontend:
+  admin-spa:
     build:
-      context: ./admin-spa   # ⚠️ Папка где лежит твой Dockerfile для фронта
-    container_name: qazaq_admin
+      context: ./admin-spa
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8000/api
+        VITE_STUDENT_URL: http://localhost:3002
+    container_name: qazaq_admin_spa
     depends_on:
       backend:
         condition: service_healthy
     ports:
-      - "3001:80"   # localhost:3001 -> Nginx (avoid clash with student app)
-    volumes:
-      - uploads:/uploads:ro
+      - "3000:80"
     networks:
       - qazaq_network
+    restart: unless-stopped
+
+  student-next:
+    build:
+      context: ./student-next
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000/api
+    container_name: qazaq_student_next
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3002:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+      - NODE_ENV=production
+    networks:
+      - qazaq_network
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: qazaq_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./uploads:/uploads:ro
+      - ./admin-spa/dist:/var/www/admin:ro
+      - ./student-next/dist:/var/www/student:ro  # student-next static build
+    depends_on:
+      backend:
+        condition: service_healthy
+      admin-spa:
+        condition: service_started
+      # student-next:  # Uncomment if student-next is enabled
+      #   condition: service_started
+    networks:
+      - qazaq_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
 
 volumes:
   postgres_data:
-  uploads:
+    driver: local
 
 networks:
   qazaq_network:

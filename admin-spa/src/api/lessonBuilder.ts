@@ -1,5 +1,5 @@
 import { api } from "./client";
-import { BlockType, Lesson, LessonBlock } from "../types";
+import { BlockType, Course, Lesson, LessonBlock, Module } from "../types";
 
 export type BlockPayload = {
   type: BlockType;
@@ -8,8 +8,38 @@ export type BlockPayload = {
 };
 
 export const lessonBuilderApi = {
+  async listCourses(): Promise<Course[]> {
+    const { data } = await api.get("admin/courses");
+    return data;
+  },
+  async createCourse(payload: Partial<Course>): Promise<Course> {
+    const { data } = await api.post("admin/courses", payload);
+    return data;
+  },
+  async deleteCourse(courseId: number) {
+    await api.delete(`admin/courses/${courseId}`);
+  },
+  async listModules(courseId?: number): Promise<Module[]> {
+    const { data } = await api.get("admin/modules", { params: courseId ? { course_id: courseId } : undefined });
+    return data;
+  },
+  async createModule(payload: Partial<Module>): Promise<Module> {
+    const { data } = await api.post("admin/modules", payload);
+    return data;
+  },
+  async updateModule(moduleId: number, payload: Partial<Module>): Promise<Module> {
+    const { data } = await api.patch(`admin/modules/${moduleId}`, payload);
+    return data;
+  },
+  async deleteModule(moduleId: number) {
+    await api.delete(`admin/modules/${moduleId}`);
+  },
   async listLessons(moduleId?: number): Promise<Lesson[]> {
     const { data } = await api.get("admin/lessons", { params: moduleId ? { module_id: moduleId } : undefined });
+    return data;
+  },
+  async createLesson(payload: Partial<Lesson>) {
+    const { data } = await api.post("admin/lessons", payload);
     return data;
   },
   async fetchLesson(lessonId: number): Promise<Lesson & { blocks: LessonBlock[] }> {
@@ -34,6 +64,9 @@ export const lessonBuilderApi = {
   },
   async deleteBlock(blockId: number) {
     await api.delete(`admin/lessons/blocks/${blockId}`);
+  },
+  async deleteLesson(lessonId: number) {
+    await api.delete(`admin/lessons/${lessonId}`);
   },
   async duplicateBlock(blockId: number) {
     const { data } = await api.post(`admin/lessons/blocks/${blockId}/duplicate`);
