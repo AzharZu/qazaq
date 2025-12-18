@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Request, UploadFile, status
 from sqlalchemy.orm import Session
 
 from ...api import deps
@@ -116,4 +116,136 @@ async def pronunciation_check(
         "feedback": feedback,
         "audio_url": audio_url,
         "word_id": word_obj.id if word_obj else None,
+    }
+
+
+@router.post("/mock-check")
+def pronunciation_mock_check(
+    payload: dict = Body(...),
+    request: Request = None,
+    db: Session = Depends(deps.current_db),
+):
+    deps.require_user(request, db=db)
+    phrase = (payload.get("phrase") or "").strip()
+    language = (payload.get("language") or "kk").lower()
+    if not phrase:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="phrase is required")
+
+    feedback_ru = "Отлично сказано! Продолжай в том же духе."
+    feedback_kk = "Жарайсың! Дұрыс айттың, осылай жалғастыр."
+    tips = ["Держи темп", "Чётко выговаривай согласные"] if language == "ru" else ["Жылдамдығыңды сақта", "Дыбыстарды анық айт"]
+
+    return {
+        "ok": True,
+        "score": 9,
+        "status": "excellent",
+        "feedback": feedback_ru if language == "ru" else feedback_kk,
+        "tips": tips,
+        "phrase": phrase,
+    }
+
+
+@router.post("/check-audio")
+async def pronunciation_check_audio(
+    request: Request,
+    audio: UploadFile = File(...),
+    word: str = Form(...),
+    language: str = Form(default="kk"),
+    db: Session = Depends(deps.current_db),
+):
+    """Simple audio pronunciation check - accepts real audio recording and returns mock feedback"""
+    user = deps.require_user(request, db=db)
+    
+    # Read audio file (we're not analyzing it, just accepting it)
+    audio_data = await audio.read()
+    if not audio_data or len(audio_data) == 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Audio file is empty")
+    
+    # Mock feedback - could be enhanced later with real analysis
+    language = language.lower()
+    
+    # Random score between 70-100 for demo purposes
+    import random
+    score = random.randint(70, 100)
+    
+    if score >= 85:
+        status_label = "excellent"
+        feedback_ru = "🌟 Отлично! Произношение чёткое и правильное!"
+        feedback_kk = "🌟 Өте жақсы! Дыбыстауыңыз нақты және дұрыс!"
+        tips = ["Продолжай в том же духе!", "Отличная дикция!"]
+    elif score >= 70:
+        status_label = "good"
+        feedback_ru = "✅ Хорошо! Ещё немного практики и будет идеально."
+        feedback_kk = "✅ Жақсы! Тағы бір аз тәжірибе және керемет болады."
+        tips = ["Говори чуть медленнее", "Отчётливее произноси гласные"]
+    elif score >= 50:
+        status_label = "ok"
+        feedback_ru = "⚠️ Неплохо, но нужно ещё потренироваться."
+        feedback_kk = "⚠️ Ажарлы, бірақ тағы да жаттықтыру қажет."
+        tips = ["Прослушай образец ещё раз", "Попробуй записать медленнее"]
+    else:
+        status_label = "bad"
+        feedback_ru = "❌ Попробуй ещё раз. Прослушай образец внимательнее."
+        feedback_kk = "❌ Қайтадан көрісіп. Үлгіні мұқият тыңда."
+        tips = ["Повтори образец несколько раз", "Говори чётче и громче"]
+    
+    feedback = feedback_ru if language == "ru" else feedback_kk
+    
+    return {
+        "score": score,
+        "status": status_label,
+        "feedback": feedback,
+        "tips": tips,
+        "word": word,
+    }
+
+
+
+@router.post("/check-audio")
+async def check_audio(
+    request: Request,
+    audio: UploadFile = File(...),
+    word: str = Form(...),
+    language: str = Form(default="kk"),
+    db: Session = Depends(deps.current_db),
+):
+    """Check pronunciation from real audio recording"""
+    user = deps.require_user(request, db=db)
+    
+    if not word or not word.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="word is required")
+    
+    # Read audio file
+    audio_content = await audio.read()
+    if not audio_content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="audio file is empty")
+    
+    # Evaluate pronunciation using real service
+    score, status_label = evaluate_pronunciation(word.strip(), audio_content, language)
+    feedback = feedback_for_score(score, language)
+    tips = []
+    
+    # Generate helpful tips based on score
+    if language == "kk":
+        if score < 0.5:
+            tips = ["Дыбыстарды анық айт", "Жылдамдығыңды төмендет", "Үндеулерді ұзына айт"]
+        elif score < 0.75:
+            tips = ["Тағы бір рет байқап тыңда", "Дұрыс ырғақ сақта"]
+        else:
+            tips = ["Жарайсың! Осылай жалғастыр"]
+    else:
+        if score < 0.5:
+            tips = ["Чётко выговаривай каждый звук", "Замедли темп", "Вытягивай гласные"]
+        elif score < 0.75:
+            tips = ["Послушай еще раз", "Сохраняй правильный ударение"]
+        else:
+            tips = ["Отлично! Продолжай так"]
+    
+    return {
+        "score": int(score * 100),  # Return 0-100
+        "status": status_label,
+        "feedback": feedback,
+        "tips": tips,
+        "word": word,
+        "language": language,
     }

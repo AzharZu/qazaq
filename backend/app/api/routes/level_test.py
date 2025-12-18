@@ -67,9 +67,29 @@ def level_test_result(payload: dict, request: Request, db: Session = Depends(dep
     user = getattr(request.state, "user", None)
     age = user.age if user else None
     target = user.target if user else None
-    recommended_course = recommend_course_slug(age, target)
+    recommended_slug = recommend_course_slug(age, target, level)
+    course = (
+        db.query(models.Course)
+        .filter(models.Course.slug == recommended_slug)
+        .first()
+    )
+    course_payload = None
+    if course:
+        course_payload = {
+            "id": course.id,
+            "slug": course.slug,
+            "name": course.name,
+            "description": course.description,
+            "audience": course.audience,
+        }
     if user:
         user.level = level
         db.add(user)
         db.commit()
-    return LevelTestResult(level=level, recommended_course=recommended_course)
+    return LevelTestResult(
+        level=level,
+        recommended_course=recommended_slug,
+        score=correct,
+        total=total,
+        course=course_payload,
+    )

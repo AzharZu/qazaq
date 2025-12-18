@@ -6,7 +6,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = "20260303_add_user_stats_table"
-down_revision = "20251225_add_pronunciation_results_table"
+down_revision = "20260304_add_daily_goals_table"
 branch_labels = None
 depends_on = None
 

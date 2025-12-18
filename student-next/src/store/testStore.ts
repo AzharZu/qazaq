@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { testApi } from "@/lib/api/test";
 import { PlacementResult, TestQuestion } from "@/types/test";
+import { resolveQuestionText } from "@/utils/question";
 
 type TestState = {
   questions: TestQuestion[];
@@ -29,9 +30,21 @@ export const useTestStore = create<TestState & TestActions>((set, get) => ({
     set({ loading: true });
     try {
       const { questions } = await testApi.fetchQuestions(limit);
+      const normalized = questions.map((q, idx) => {
+        const questionText = resolveQuestionText(q) || `Вопрос ${q.id ?? idx + 1}`;
+        return {
+          ...q,
+          id: q.id ?? String(idx),
+          question: questionText,
+          prompt: q.prompt ?? questionText,
+          title: q.title ?? questionText,
+          correct: (q as any).correct ?? (q as any).correct_option,
+          options: q.options || [],
+        };
+      });
       set({
-        questions,
-        answers: Array(questions.length).fill(-1),
+        questions: normalized,
+        answers: Array(normalized.length).fill(-1),
         currentIndex: 0,
         result: null,
       });

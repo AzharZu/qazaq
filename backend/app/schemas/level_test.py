@@ -21,9 +21,20 @@ class LevelTestAnswer(BaseModel):
     selected: int
 
 
+class LevelTestCourse(BaseModel):
+    id: int
+    slug: str
+    name: str
+    description: Optional[str] = None
+    audience: Optional[str] = None
+
+
 class LevelTestResult(BaseModel):
     level: str
     recommended_course: str
+    score: int
+    total: int
+    course: Optional[LevelTestCourse] = None
 
 
-__all__ = ["LevelTestQuestionOut", "LevelTestResult", "LevelTestAnswer"]
+__all__ = ["LevelTestQuestionOut", "LevelTestResult", "LevelTestAnswer", "LevelTestCourse"]

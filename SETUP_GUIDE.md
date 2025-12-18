@@ -94,6 +94,8 @@ Internet (User Browser)
 Volumes:
 - postgres_data: /var/lib/postgresql/data
 - uploads: /app/uploads (backend) → /uploads (nginx)
+
+⚠️ `docker compose down` безопасно останавливает сервисы; `docker compose down -v` удаляет named volumes (включая postgres_data) и очищает данные базы.
 ```
 
 ## 📋 Files Created/Modified

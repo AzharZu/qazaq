@@ -6,8 +6,8 @@ import ProgressBar from "@/components/ProgressBar";
 import { lessonsApi } from "@/lib/api/lessons";
 import { LessonDetail, LessonBlock } from "@/types/lesson";
 import { useProgressStore } from "@/store/progressStore";
-import { useDictionaryStore } from "@/store/dictionaryStore";
 import VideoPlayer from "@/components/lesson/VideoPlayer";
+import { computeStubLessonScore, MOCK_CHECKS_ENABLED } from "@/lib/mockAssessments";
 
 const STEP_DEFS: { key: string; label: string; types: string[] }[] = [
   { key: "theory", label: "Теория", types: ["theory", "video", "audio_theory"] },
@@ -16,6 +16,7 @@ const STEP_DEFS: { key: string; label: string; types: string[] }[] = [
   { key: "tasks", label: "Задания", types: ["quiz", "theory_quiz", "lesson_test", "audio_task", "audio", "image"] },
   { key: "free_writing", label: "Свободное письмо", types: ["free_writing"] },
 ];
+type StepKey = (typeof STEP_DEFS)[number]["key"];
 
 export default function LessonPage() {
   const router = useRouter();
@@ -26,10 +27,12 @@ export default function LessonPage() {
   const [completed, setCompleted] = useState(false);
   const [nextLessonId, setNextLessonId] = useState<number | null>(null);
   const [newWordsAdded, setNewWordsAdded] = useState<number>(0);
-  const { loadWords } = useDictionaryStore();
+  const [resultScore, setResultScore] = useState<{ score: number; total: number; reason: string } | null>(null);
 
-  const { blocks, currentIndex, setLesson, markBlockComplete, saveProgress, reset, goToBlock } = useProgressStore();
+  const { blocks, currentIndex, completedBlockIds, setLesson, markBlockComplete, saveProgress, reset, goToBlock } = useProgressStore();
   const previewMode = preview === "1";
+  const stubModeActive = MOCK_CHECKS_ENABLED;
+  const [backendCompleted, setBackendCompleted] = useState(false);
 
   const normalizeType = useCallback((block: LessonBlock) => {
     const raw = (block?.type ||
@@ -46,15 +49,26 @@ export default function LessonPage() {
     const load = async () => {
       setLoading(true);
       setNewWordsAdded(0);
+      setResultScore(null);
+      setCompleted(false);
+      setNextLessonId(null);
+      setBackendCompleted(false);
       try {
         const detail = await lessonsApi.getLesson(id as string, { preview: previewMode });
         setLessonDetail(detail);
+        const lessonId = detail.lesson.id;
+        const progressMap = detail.progress_map || {};
+        const doneFromBackend =
+          detail.progress_status === "done" ||
+          progressMap?.[lessonId] === "done" ||
+          progressMap?.[String(lessonId)] === "done";
+        setBackendCompleted(doneFromBackend);
+        setCompleted(doneFromBackend);
         if (!previewMode) {
           setNewWordsAdded(detail?.new_words_added || 0);
-          await loadWords(detail?.lesson?.id).catch(() => {});
         }
-        setLesson(detail.lesson.id, detail.lesson.blocks || detail.blocks || []);
-        const incomingBlocks = detail.lesson.blocks || detail.blocks || [];
+        const incomingBlocks = (Array.isArray(detail.blocks) && detail.blocks.length ? detail.blocks : detail.lesson.blocks) || [];
+        setLesson(detail.lesson.id, incomingBlocks);
         console.info("[Lesson] blocks from backend:", incomingBlocks.map((b) => normalizeType(b)));
       } catch (err: any) {
         setError(err?.response?.data?.detail || "Не удалось загрузить урок");
@@ -64,8 +78,7 @@ export default function LessonPage() {
     };
     load();
     return () => reset();
-  }, [id, previewMode, reset, setLesson, normalizeType, loadWords]);
-
+  }, [id, previewMode, reset, setLesson, normalizeType]);
   const currentBlock = useMemo(() => blocks[currentIndex], [blocks, currentIndex]);
   const stepTargets = useMemo(
     () =>
@@ -77,6 +90,11 @@ export default function LessonPage() {
       ),
     [blocks, normalizeType],
   );
+  const hasPronunciationBlock = useMemo(() => blocks.some((b) => normalizeType(b) === "pronunciation"), [blocks, normalizeType]);
+  const scoreSummary = useMemo(
+    () => resultScore || computeStubLessonScore(hasPronunciationBlock),
+    [resultScore, hasPronunciationBlock],
+  );
   const activeStep = useMemo(() => {
     let active = 0;
     stepTargets.forEach((idx, i) => {
@@ -85,16 +103,43 @@ export default function LessonPage() {
     return active;
   }, [currentIndex, stepTargets]);
 
-  const goToStep = (key: string) => {
-    const targetIndex = stepTargets[STEP_DEFS.findIndex((s) => s.key === key)];
-    if (targetIndex !== undefined && targetIndex >= 0) {
-      goToBlock(targetIndex);
-      if (typeof window !== "undefined") {
-        window.scrollTo({ top: 0, behavior: "smooth" });
+  const resolveBlockId = useCallback((block: LessonBlock | undefined, idx: number) => (block?.id ?? `idx-${idx}`).toString(), []);
+  const uniqueBlockIds = useMemo(() => {
+    const seen = new Set<string>();
+    return blocks.reduce<string[]>((acc, block, idx) => {
+      const id = resolveBlockId(block, idx);
+      if (!seen.has(id)) {
+        seen.add(id);
+        acc.push(id);
       }
-    }
-  };
-  const blockProgress = blocks.length ? Math.round((currentIndex / blocks.length) * 100) : 0;
+      return acc;
+    }, []);
+  }, [blocks, resolveBlockId]);
+  const blockTypes = useMemo(() => blocks.map((b) => normalizeType(b) || "unknown"), [blocks, normalizeType]);
+  const completedSet = useMemo(() => {
+    const set = new Set<string>();
+    completedBlockIds.forEach((id) => set.add(id.toString()));
+    return set;
+  }, [completedBlockIds]);
+  const completedSteps = useMemo(() => uniqueBlockIds.filter((id) => completedSet.has(id)).length, [completedSet, uniqueBlockIds]);
+  const totalSteps = uniqueBlockIds.length;
+  const allStepsDone = totalSteps > 0 && completedSteps >= totalSteps;
+  const isLessonCompleted = completed || allStepsDone || backendCompleted;
+  const blockProgress = totalSteps ? Math.round((completedSteps / totalSteps) * 100) : 0;
+  const displayProgress = isLessonCompleted ? 100 : blockProgress;
+
+  useEffect(() => {
+    console.debug("[LessonProgress]", {
+      total_steps: totalSteps,
+      completed_steps: completedSteps,
+      block_ids: uniqueBlockIds,
+      block_types: blockTypes,
+      current_index: currentIndex,
+      completed_block_ids: completedBlockIds,
+      progress: displayProgress,
+    });
+  }, [totalSteps, completedSteps, uniqueBlockIds, blockTypes, currentIndex, completedBlockIds, displayProgress]);
+
   const hasVideoBlock = useMemo(() => blocks.some((b) => normalizeType(b) === "video"), [blocks, normalizeType]);
   const lessonVideoUrl = useMemo(() => {
     const videoBlock = blocks.find((b) => normalizeType(b) === "video");
@@ -103,29 +148,65 @@ export default function LessonPage() {
 
   const finishLesson = async () => {
     if (!id) return;
+    const stubScore = computeStubLessonScore(hasPronunciationBlock);
+    setResultScore(stubScore);
     if (previewMode) {
       setCompleted(true);
       return;
     }
-    const res = await lessonsApi.completeLesson(id as string, {});
-    await saveProgress({ status: "done" });
-    await loadWords(id as string).catch(() => {});
-    setNextLessonId(res?.next_lesson_id ?? null);
-    setCompleted(true);
+    try {
+      const res = await lessonsApi.completeLesson(id as string, { score: stubScore.score, total_questions: stubScore.total });
+      await saveProgress({ status: "done", score: stubScore.score });
+      setNextLessonId(res?.next_lesson_id ?? null);
+    } catch (_err) {
+      await saveProgress({ status: "done", score: stubScore.score }).catch(() => {});
+    } finally {
+      setCompleted(true);
+    }
   };
 
-  const handleCompleteBlock = async () => {
+  const handleCompleteBlock = async (nextIndexOverride?: number) => {
     if (!blocks.length) return;
     const currentBlock = blocks[currentIndex];
+    const blockId = resolveBlockId(currentBlock, currentIndex);
+    const apiBlockId = currentBlock?.id;
     if (!previewMode) {
-      await saveProgress({ status: currentIndex >= blocks.length - 1 ? "done" : "in_progress", block_id: currentBlock?.id });
+      await saveProgress({
+        status: currentIndex >= blocks.length - 1 ? "done" : "in_progress",
+        block_id: apiBlockId,
+        score: currentIndex >= blocks.length - 1 ? computeStubLessonScore(hasPronunciationBlock).score : undefined,
+      });
     }
+    markBlockComplete(blockId, nextIndexOverride);
     if (currentIndex >= blocks.length - 1) {
       await finishLesson();
-    } else {
-      markBlockComplete(blocks[currentIndex]?.id || currentIndex);
     }
   };
+
+  const findStepIndex = useCallback(
+    (key: StepKey) => {
+      const idx = STEP_DEFS.findIndex((s) => s.key === key);
+      return idx >= 0 ? stepTargets[idx] : -1;
+    },
+    [stepTargets],
+  );
+
+  const goToStep = useCallback(
+    async (key: StepKey, opts?: { completeCurrent?: boolean }) => {
+      const targetIndex = findStepIndex(key);
+      const fallbackIndex = targetIndex >= 0 ? targetIndex : Math.min(currentIndex + 1, Math.max(blocks.length - 1, 0));
+      if (fallbackIndex < 0 || !blocks.length) return;
+      if (opts?.completeCurrent) {
+        await handleCompleteBlock(fallbackIndex);
+      } else {
+        goToBlock(fallbackIndex);
+      }
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    },
+    [blocks.length, currentIndex, findStepIndex, goToBlock, handleCompleteBlock],
+  );
 
   if (loading) {
     return <div className="rounded-2xl bg-panel p-8 text-ink shadow-card">Загрузка урока...</div>;
@@ -154,12 +235,12 @@ export default function LessonPage() {
           </div>
         </div>
         <div className="mt-4">
-          <ProgressBar value={blockProgress} label="Прогресс урока" />
+          <ProgressBar value={displayProgress} label="Прогресс урока" />
         </div>
         {!previewMode && !!newWordsAdded && (
           <div className="mt-4 rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-sm text-gold">
             {newWordsAdded} новых слов добавлено в словарь
-            <Link href={`/dictionary?lessonId=${lessonDetail.lesson.id}`} className="ml-3 font-semibold underline underline-offset-4">
+            <Link href="/dictionary" className="ml-3 font-semibold underline underline-offset-4">
               Закрепить слова
             </Link>
           </div>
@@ -199,11 +280,29 @@ export default function LessonPage() {
         </div>
       </div>
 
-      {completed ? (
-        <div className="rounded-2xl bg-panel p-8 shadow-card">
+      {isLessonCompleted ? (
+        <div className="rounded-2xl bg-panel p-8 shadow-card space-y-5">
           <h2 className="text-2xl font-semibold text-gold">Урок завершен!</h2>
-          <p className="mt-2 text-sm text-ink/80">Отличная работа. Продолжайте, чтобы закрепить материал.</p>
-          <div className="mt-4 flex gap-3">
+          {stubModeActive ? (
+            <span className="inline-flex items-center gap-2 rounded-full bg-slate px-3 py-1 text-xs font-semibold uppercase tracking-wide text-ink shadow-soft">
+              Проверяется автоматически нашим ИИ
+            </span>
+          ) : null}
+          <div className="flex flex-wrap items-start gap-4">
+            <div className="rounded-2xl bg-slate px-6 py-5 shadow-inner">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">Результат урока</p>
+              <p className="text-4xl font-bold text-white">
+                {scoreSummary.score} / {scoreSummary.total}
+              </p>
+              <p className="text-sm text-ink/80">{scoreSummary.reason}</p>
+            </div>
+            <div className="flex-1 rounded-2xl border border-green-400/40 bg-green-500/15 px-6 py-5 text-sm text-green-50 shadow-inner">
+              <p className="text-base font-semibold">Проверяется автоматически нашим ИИ.</p>
+              <p className="mt-1 text-green-100/80">Результаты фиксируются без ожидания ручной проверки.</p>
+            </div>
+          </div>
+          <p className="text-sm text-ink/80">Отличная работа. Продолжайте, чтобы закрепить материал.</p>
+          <div className="mt-2 flex gap-3">
             {nextLessonId && (
               <Link
                 href={`/lesson/${nextLessonId}`}

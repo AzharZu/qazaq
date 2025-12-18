@@ -1,33 +1,43 @@
-import { useEffect, useMemo } from "react";
-import { useDictionaryStore } from "@/store/dictionaryStore";
+import { useEffect, useMemo, useState } from "react";
+import { dictionaryApi, DictionaryWord } from "@/lib/api/dictionary";
 import { resolveMediaUrl } from "./media";
 
 export type DictionaryWordView = { id: number | string; wordKz: string; translationRu: string; exampleRu?: string; audioUrl?: string };
 
-export const useDictionaryWords = (opts?: { lessonId?: number | string }) => {
-  const { words, loadWords, loading } = useDictionaryStore();
-  const lessonFilter = opts?.lessonId;
+export const useDictionaryWords = () => {
+  const [words, setWords] = useState<DictionaryWord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadWords(lessonFilter);
-  }, [lessonFilter, loadWords]);
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await dictionaryApi.getDictionaryWords();
+        setWords(data);
+      } catch (err: any) {
+        setError(err?.response?.data?.detail || "Failed to load dictionary");
+        console.error("Failed to load dictionary words:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const list: DictionaryWordView[] = useMemo(
-    () =>
-      words.map((w) => {
-        const example = (w as any).example ?? (w as any).example_sentence;
-        return {
-          id: w.id,
-          wordKz: w.word || w.translation || "",
-          translationRu: w.translation || w.word || "",
-          exampleRu: example,
-          audioUrl: resolveMediaUrl((w as any).audio_path || w.audio_url || undefined),
-        };
-      }),
-    [words]
-  );
+    load();
+  }, []);
 
-  return { words: list, loading };
+  const list: DictionaryWordView[] = useMemo(() => {
+    return words.map((w) => ({
+      id: w.id,
+      wordKz: w.word || "",
+      translationRu: w.translation || "",
+      exampleRu: (w as any).example_sentence || (w as any).example || "",
+      audioUrl: resolveMediaUrl((w as any).audio_path || w.audio_url || undefined),
+    }));
+  }, [words]);
+
+  return { words: list, loading, error };
 };
 
 export const playDictionaryAudio = (word: DictionaryWordView | undefined) => {

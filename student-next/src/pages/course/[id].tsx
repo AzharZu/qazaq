@@ -46,7 +46,6 @@ export default function CourseDetailPage() {
   if (error || !course) {
     return <div className="rounded-2xl bg-panel p-8 text-red-300 shadow-card">{error || "Курс не найден"}</div>;
   }
-
   return (
     <div className="space-y-8">
       <Link href="/courses" className="inline-flex items-center gap-2 text-sm font-semibold text-gold hover:text-white">

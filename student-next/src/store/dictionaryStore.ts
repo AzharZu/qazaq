@@ -9,11 +9,10 @@ type DictionaryState = {
   mode: DictionaryMode;
   loading: boolean;
   error: string | null;
-  lastLessonId?: number | null;
 };
 
 type DictionaryActions = {
-  loadWords: (lessonId?: number | string) => Promise<void>;
+  loadWords: () => Promise<void>;
   setMode: (mode: DictionaryMode) => void;
   markSuccess: (wordId: number) => Promise<void>;
   markFail: (wordId: number) => Promise<void>;
@@ -43,13 +42,12 @@ export const useDictionaryStore = create<DictionaryState & DictionaryActions>((s
   mode: "all",
   loading: false,
   error: null,
-  lastLessonId: null,
 
-  loadWords: async (lessonId) => {
+  loadWords: async () => {
     set({ loading: true, error: null });
     try {
-      const words = await dictionaryApi.getDictionaryWords(lessonId ? { lessonId } : undefined);
-      set({ words: sortByStatus(words), currentIndex: 0, lastLessonId: lessonId ? Number(lessonId) : null });
+      const words = await dictionaryApi.getDictionaryWords();
+      set({ words: sortByStatus(words), currentIndex: 0 });
     } catch (err: any) {
       set({ error: err?.response?.data?.detail || "Не удалось загрузить словарь" });
     } finally {

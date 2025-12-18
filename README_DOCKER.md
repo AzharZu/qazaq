@@ -58,16 +58,30 @@ docker-compose build --no-cache backend
 # Остановка всех сервисов
 docker-compose down
 
-# Остановка с удалением volumes
-docker-compose down -v
+# Остановка с удалением volumes (полностью очищает данные БД)
+docker-compose down -v  # не используйте, если хотите сохранить базу
 ```
 
 ## 🌐 Доступ к сервисам
 
 - **Admin Panel**: http://localhost:3001
+- **Student SPA**: http://localhost:3002
 - **API Docs**: http://localhost:8000/docs
-- **Main Site**: http://localhost (через nginx)
-- **Database**: localhost:5432 (только в dev режиме)
+- **Main Site**: http://localhost (requires nginx)
+- **Database**: localhost:5432 (only in local dev)
+
+### 📝 Test Credentials
+
+**Admin Account:**
+- Email: `admin@example.com`
+- Password: `admin123`
+
+**Student Account:**
+- Email: `student@example.com`
+- Password: `student123`
+
+**Guest Signup:**
+- Available on student SPA at http://localhost:3002/register
 
 ## 🐛 Troubleshooting
 

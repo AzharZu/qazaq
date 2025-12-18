@@ -1,7 +1,7 @@
 import axios from "axios";
 
-// Prefer env backend URL, fallback to /api (proxy)
-const API_URL = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
+// Always use /api for proxy through nginx
+const API_URL = "/api";
 const TOKEN_KEY = "auth_token";
 
 const api = axios.create({

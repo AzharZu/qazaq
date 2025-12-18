@@ -1,14 +1,11 @@
 import Link from "next/link";
-import { useRouter } from "next/router";
 import { useMemo, useState } from "react";
 import { useDictionaryWords } from "@/lib/useDictionaryWords";
 import { useDictionaryStore } from "@/store/dictionaryStore";
 
 export default function DictionaryChoosePage() {
-  const router = useRouter();
-  const lessonId = router.query.lessonId as string | undefined;
   const { submitResult } = useDictionaryStore();
-  const { words: list, loading } = useDictionaryWords({ lessonId });
+  const { words: list, loading } = useDictionaryWords();
   const [index, setIndex] = useState(0);
   const [choice, setChoice] = useState<string | null>(null);
   const [result, setResult] = useState<"success" | "error" | null>(null);

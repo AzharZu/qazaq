@@ -11,12 +11,13 @@ export default function DictionaryPractice() {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [pronunciationScore, setPronunciationScore] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!words.length) {
-      loadWords();
+    if (!loaded && words.length === 0) {
+      loadWords().then(() => setLoaded(true));
     }
-  }, [loadWords, words.length]);
+  }, []); // eslint-disable-next-line react-hooks/exhaustive-deps
 
   const word = words[currentIndex];
 

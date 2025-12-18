@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import ProgressBar from "@/components/ProgressBar";
 import client from "@/lib/api/client";
@@ -59,7 +60,16 @@ export default function HomePage() {
           </div>
         </div>
         <div className="flex items-center justify-center">
-          <div className="h-72 w-full max-w-md rounded-2xl bg-slate/60 shadow-inner" />
+          <div className="relative w-full max-w-md min-h-[260px] overflow-hidden rounded-2xl bg-gradient-to-br from-slate via-midnight to-slateDeep shadow-inner md:aspect-[4/3] md:min-h-0">
+            <Image
+              src="/images/hero-mascot.png"
+              alt="Qazaq Mentor иллюстрация"
+              fill
+              priority
+              sizes="(max-width: 768px) 90vw, 420px"
+              className="object-contain"
+            />
+          </div>
         </div>
       </section>
 

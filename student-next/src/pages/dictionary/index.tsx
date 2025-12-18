@@ -1,12 +1,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
 import { playDictionaryAudio, useDictionaryWords } from "@/lib/useDictionaryWords";
 
 export default function DictionaryPage() {
-  const router = useRouter();
-  const lessonId = router.query.lessonId as string | undefined;
-  const { words: list, loading } = useDictionaryWords({ lessonId });
+  const { words: list, loading } = useDictionaryWords();
   const [showTranslation, setShowTranslation] = useState(false);
   const [learned, setLearned] = useState<Set<string | number>>(new Set());
   const [index, setIndex] = useState(0);
@@ -19,7 +16,7 @@ export default function DictionaryPage() {
   useEffect(() => {
     setIndex(0);
     setShowTranslation(false);
-  }, [lessonId, list.length]);
+  }, [list.length]);
 
   const hasWords = list.length > 0;
   const word = hasWords ? list[index % list.length] : undefined;
@@ -125,7 +122,7 @@ export default function DictionaryPage() {
           ].map((item) => (
             <Link
               key={item.href}
-              href={lessonId ? `${item.href}?lessonId=${lessonId}` : item.href}
+              href={item.href}
               className="rounded-2xl bg-slate-800 px-4 py-4 shadow-lg transition hover:-translate-y-1 hover:bg-slate-700"
             >
               <div className="text-lg font-semibold text-amber-300">{item.title}</div>

@@ -36,6 +36,10 @@ class User(Base):
     def is_admin(self) -> bool:
         return (self.role or "").lower() == "admin"
 
+    @property
+    def name(self) -> str | None:
+        return self.full_name
+
 
 class PlacementTestResult(Base):
     __tablename__ = "placement_results"

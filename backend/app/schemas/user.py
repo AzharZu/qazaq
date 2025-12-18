@@ -22,6 +22,8 @@ class UserOut(BaseModel):
     daily_minutes: int
     level: Optional[str] = None
     role: Optional[str] = None
+    name: Optional[str] = None
+    full_name: Optional[str] = None
     is_admin: bool = False
 
 

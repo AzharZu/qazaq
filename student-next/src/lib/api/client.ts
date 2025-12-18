@@ -31,7 +31,7 @@ export const setUnauthorizedHandler = (handler: UnauthorizedHandler) => {
 
 export const client = axios.create({
   baseURL: apiBase,
-  withCredentials: false,
+  withCredentials: true,
 });
 
 client.interceptors.request.use((config) => {
@@ -46,7 +46,11 @@ client.interceptors.request.use((config) => {
 client.interceptors.response.use(
   (res) => res,
   (error) => {
-    if (error?.response?.status === 401) {
+    const status = error?.response?.status;
+    const url = error?.config?.url || "";
+    // Для открытых эндпоинтов (placement/level-test) не разлогиниваем пользователя
+    const isOpenTestEndpoint = url.includes("/placement") || url.includes("/level-test");
+    if (status === 401 && !isOpenTestEndpoint) {
       unauthorizedHandler?.();
     }
     return Promise.reject(error);

@@ -1,43 +1,69 @@
 import Link from "next/link";
-import { useRouter } from "next/router";
-import { useState } from "react";
-import { playDictionaryAudio, useDictionaryWords } from "@/lib/useDictionaryWords";
+import { useEffect, useMemo, useState } from "react";
+import { useDictionaryWords } from "@/lib/useDictionaryWords";
 import { useDictionaryStore } from "@/store/dictionaryStore";
 
 export default function DictionaryRepeatPage() {
-  const router = useRouter();
-  const lessonId = router.query.lessonId as string | undefined;
   const { submitResult } = useDictionaryStore();
-  const { words: list, loading } = useDictionaryWords({ lessonId });
+  const { words: list, loading } = useDictionaryWords();
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState("");
   const [result, setResult] = useState<"success" | "error" | null>(null);
+  const [revealedWord, setRevealedWord] = useState<string | null>(null);
 
-  const hasWords = list.length > 0;
-  const word = hasWords ? list[index % list.length] : undefined;
+  const playableWords = useMemo(() => list.filter((w) => !!w.audioUrl), [list]);
+  const hasWords = playableWords.length > 0;
+  const word = hasWords ? playableWords[index % playableWords.length] : undefined;
+
+  useEffect(() => {
+    setIndex(0);
+    setAnswer("");
+    setResult(null);
+    setRevealedWord(null);
+  }, [playableWords.length]);
 
   const next = () => {
     setResult(null);
+    setRevealedWord(null);
     setAnswer("");
-    if (list.length) setIndex((i) => (i + 1) % list.length);
+    if (playableWords.length) setIndex((i) => (i + 1) % playableWords.length);
   };
   const prev = () => {
     setResult(null);
+    setRevealedWord(null);
     setAnswer("");
-    if (list.length) setIndex((i) => (i - 1 + list.length) % list.length);
+    if (playableWords.length) setIndex((i) => (i - 1 + playableWords.length) % playableWords.length);
+  };
+
+  const playAudio = () => {
+    if (!word?.audioUrl) {
+      next();
+      return;
+    }
+    const audio = new Audio(word.audioUrl);
+    audio.play().catch(() => next());
   };
 
   const check = async () => {
-    if (!word) return;
-    const ok = answer.trim().toLowerCase() === word.wordKz.trim().toLowerCase();
+    if (!word?.audioUrl) {
+      next();
+      return;
+    }
+    const userAnswer = answer.trim();
+    if (!userAnswer) return;
+    const ok = userAnswer.toLowerCase() === (word.wordKz || "").trim().toLowerCase();
     setResult(ok ? "success" : "error");
+    setRevealedWord(ok ? null : word.wordKz);
     await submitResult(Number(word.id), "repeat", ok);
   };
 
   return (
     <div className="min-h-screen bg-slate-900 px-4 py-6 text-white md:px-8 md:py-10">
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
-        <Link href="/dictionary" className="inline-flex w-fit items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700">
+        <Link
+          href="/dictionary"
+          className="inline-flex w-fit items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
+        >
           ← К словарю
         </Link>
         <h1 className="text-center text-3xl font-bold md:text-4xl">Мини-игры словаря — Повтори слово</h1>
@@ -46,7 +72,7 @@ export default function DictionaryRepeatPage() {
           {loading ? (
             <div className="text-center text-slate-300">Загружаем слова...</div>
           ) : !hasWords ? (
-            <div className="text-center text-slate-300">Нет слов для тренировки. Пройдите урок с карточками.</div>
+            <div className="text-center text-slate-300">Нет слов с аудио для тренировки. Пройдите урок с карточками.</div>
           ) : (
             <div className="flex items-center justify-between gap-4">
               <button
@@ -58,12 +84,11 @@ export default function DictionaryRepeatPage() {
               </button>
               <div className="flex-1 px-4">
                 <div className="mx-auto max-w-xl rounded-2xl bg-slate-900 px-6 py-8 text-center shadow-inner">
-                  <p className="text-sm text-slate-300">Слово</p>
-                  <div className="mt-2 text-4xl font-extrabold text-amber-300 md:text-5xl">{word?.wordKz}</div>
+                  <p className="text-sm text-slate-300">Слушайте аудио и введите услышанное слово</p>
                   <div className="mt-6 flex flex-col items-center gap-3">
                     <button
                       type="button"
-                      onClick={() => playDictionaryAudio(word)}
+                      onClick={playAudio}
                       className="w-full max-w-xs rounded-xl bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 shadow-inner transition hover:bg-slate-700"
                     >
                       Озвучить
@@ -73,8 +98,9 @@ export default function DictionaryRepeatPage() {
                       onChange={(e) => {
                         setAnswer(e.target.value);
                         setResult(null);
+                        setRevealedWord(null);
                       }}
-                      placeholder="Введите слово"
+                      placeholder="Введите услышанное слово"
                       className="w-full max-w-xs rounded-xl bg-slate-800 px-4 py-3 text-center text-white outline-none ring-amber-400/40 focus:ring"
                     />
                     <button
@@ -91,8 +117,20 @@ export default function DictionaryRepeatPage() {
                         }`}
                       >
                         {result === "success" ? "Верно! Продолжай." : "Проверьте написание и попробуйте снова."}
+                        {result === "error" ? (
+                          <p className="mt-1 text-xs text-rose-100/80">Правильный ответ: {revealedWord || word?.wordKz}</p>
+                        ) : null}
                       </div>
                     )}
+                    {result ? (
+                      <button
+                        type="button"
+                        onClick={next}
+                        className="w-full max-w-xs rounded-xl bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 shadow-inner transition hover:bg-slate-700"
+                      >
+                        Дальше
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               </div>

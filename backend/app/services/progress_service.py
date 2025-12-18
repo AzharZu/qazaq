@@ -9,7 +9,19 @@ from ..utils.encoding_fix import clean_encoding
 from ..schemas.block import validate_block_payload
 
 
-def recommend_course_slug(age: int | None, target: str | None) -> str:
+def recommend_course_slug(age: int | None, target: str | None, level: str | None = None) -> str:
+    """
+    Suggest a course slug based on the learner profile.
+    Priority is the tested level, then age/target fallbacks for compatibility.
+    """
+    normalized_level = (level or "").upper()
+    if normalized_level in {"A0", "A1", "A2"}:
+        return "kazkids"
+    if normalized_level == "B1":
+        return "kazpro"
+    if normalized_level in {"B2", "C1", "C2"}:
+        return "qyzmet-qazaq"
+
     if age is not None and age <= 15:
         return "kazkids"
     if target in ("gov", "business"):

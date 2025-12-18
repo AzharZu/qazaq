@@ -16,18 +16,12 @@ const links = [
 export default function Navbar() {
   const router = useRouter();
   const { user, token, logout } = useAuthStore();
-  const { words, loadWords } = useDictionaryStore();
+  const { words } = useDictionaryStore();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  useEffect(() => {
-    if (token) {
-      loadWords().catch(() => {});
-    }
-  }, [token, loadWords]);
 
   const isAuthed = mounted && Boolean(token);
 

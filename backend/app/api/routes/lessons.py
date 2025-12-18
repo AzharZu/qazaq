@@ -83,6 +83,9 @@ def lesson_detail(lesson_id: int, request: Request, db: Session = Depends(deps.c
                 new_words_added = vocabulary_service.sync_lesson_vocabulary(user.id, lesson, blocks, db)
             except Exception:
                 # Soft-fail dictionary sync to avoid blocking lesson load
+                import logging
+
+                logging.getLogger(__name__).exception("Failed to sync vocabulary for lesson")
                 new_words_added = 0
     else:
         lesson = _lesson_query(db, allow_unpublished=allow_unpublished).filter(models.Lesson.id == lesson_id).first()

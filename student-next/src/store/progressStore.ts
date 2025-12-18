@@ -13,11 +13,15 @@ type ProgressState = {
 
 type ProgressActions = {
   setLesson: (lessonId: number, blocks: LessonBlock[]) => void;
-  markBlockComplete: (blockId?: number | string) => void;
+  markBlockComplete: (blockId?: number | string, nextIndexOverride?: number) => void;
   goToBlock: (index: number) => void;
   saveProgress: (payload?: { status?: string; score?: number; answers?: Record<string, any>; block_id?: number | string }) => Promise<void>;
   reset: () => void;
 };
+
+const clampIndex = (index: number, total: number) => Math.max(0, Math.min(index, Math.max(total - 1, 0)));
+const normalizeBlockId = (blockId: number | string | undefined, fallbackIndex: number) =>
+  (blockId ?? `idx-${fallbackIndex}`).toString();
 
 export const useProgressStore = create<ProgressState & ProgressActions>((set, get) => ({
   currentLesson: null,
@@ -37,15 +41,18 @@ export const useProgressStore = create<ProgressState & ProgressActions>((set, ge
       startedAt: Date.now(),
     }),
 
-  markBlockComplete: (blockId) => {
+  markBlockComplete: (blockId, nextIndexOverride) => {
     const { currentIndex, blocks, completedBlockIds } = get();
-    const nextIndex = Math.min(currentIndex + 1, Math.max(blocks.length - 1, 0));
-    const ids = completedBlockIds.includes(blockId ?? currentIndex) ? completedBlockIds : [...completedBlockIds, blockId ?? currentIndex];
-    set({ currentIndex: nextIndex, completedBlockIds: ids });
+    const fallbackIndex = clampIndex(currentIndex, blocks.length);
+    const resolvedId = normalizeBlockId(blockId ?? blocks[fallbackIndex]?.id, fallbackIndex);
+    const idsSet = new Set<string>(completedBlockIds.map((id) => id.toString()));
+    idsSet.add(resolvedId);
+    const nextIndex = nextIndexOverride !== undefined ? clampIndex(nextIndexOverride, blocks.length) : clampIndex(currentIndex + 1, blocks.length);
+    set({ currentIndex: nextIndex, completedBlockIds: Array.from(idsSet) });
   },
 
   goToBlock: (index) => {
-    set({ currentIndex: Math.max(0, Math.min(index, get().blocks.length - 1)) });
+    set({ currentIndex: clampIndex(index, get().blocks.length) });
   },
 
   saveProgress: async (payload = {}) => {

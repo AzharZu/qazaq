@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { checkPronunciation, PronunciationResult } from "@/lib/api/pronunciation";
 
-type Status = "excellent" | "good" | "bad" | null;
+type Status = "excellent" | "good" | "ok" | "bad" | null;
 
 type PronunciationState = {
   lastScore: number | null;
@@ -11,7 +11,7 @@ type PronunciationState = {
 };
 
 type PronunciationActions = {
-  evaluate: (wordId: number, audio: Blob) => Promise<PronunciationResult>;
+  evaluate: (phrase: string, language?: string) => Promise<PronunciationResult>;
   reset: () => void;
 };
 
@@ -21,10 +21,10 @@ export const usePronunciationStore = create<PronunciationState & PronunciationAc
   loading: false,
   error: null,
 
-  evaluate: async (wordId: number, audio: Blob) => {
+  evaluate: async (phrase: string, language?: string) => {
     set({ loading: true, error: null });
     try {
-      const res = await checkPronunciation(wordId, audio);
+      const res = await checkPronunciation(phrase, language);
       set({ lastScore: res.score, status: res.status, loading: false });
       return res;
     } catch (err: any) {

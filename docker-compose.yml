@@ -30,7 +30,10 @@ services:
       DATABASE_URL: "postgresql+asyncpg://qazaq_user:qazaq_pass@postgres:5432/qazaq_db"
       UPLOAD_ROOT: /app/uploads
       CDN_BASE_URL: /uploads
-      ALLOWED_ORIGINS: '["http://localhost","http://localhost:80","http://127.0.0.1","http://localhost:3000","http://127.0.0.1:3000","http://localhost:3002","http://127.0.0.1:3002"]'
+      ALLOWED_ORIGINS: '["http://localhost","http://localhost:3001","http://localhost:3002","http://localhost:8000","http://127.0.0.1:3001","http://127.0.0.1:3002","http://127.0.0.1:8000"]'
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.groq.com/openai/v1}
+      LLM_MODEL: ${LLM_MODEL:-llama-3.1-8b-instant}
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,32 +58,29 @@ services:
       context: ./admin-spa
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: http://localhost:8000/api
-        VITE_STUDENT_URL: http://localhost:3002
+        VITE_API_URL: http://localhost:8000
     container_name: qazaq_admin_spa
     depends_on:
       backend:
         condition: service_healthy
     ports:
-      - "3000:80"
+      - "3001:80"
     networks:
       - qazaq_network
     restart: unless-stopped
 
+  # Student Frontend
   student-next:
     build:
       context: ./student-next
       dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000/api
     container_name: qazaq_student_next
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
     ports:
       - "3002:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
       - NODE_ENV=production
     networks:
       - qazaq_network
@@ -94,15 +94,13 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./uploads:/uploads:ro
-      - ./admin-spa/dist:/var/www/admin:ro
-      - ./student-next/dist:/var/www/student:ro  # student-next static build
     depends_on:
       backend:
         condition: service_healthy
       admin-spa:
         condition: service_started
-      # student-next:  # Uncomment if student-next is enabled
-      #   condition: service_started
+      student-next:
+        condition: service_started
     networks:
       - qazaq_network
     healthcheck:
@@ -110,7 +108,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    restart: unless-stopped
+    restart: on-failure:5
+    profiles:
+      - nginx
 
 volumes:
   postgres_data:

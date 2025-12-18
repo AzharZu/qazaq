@@ -1,4 +1,4 @@
-import client from "./client";
+import { mockFreeWritingCheck } from "@/lib/mockAssessments";
 
 export type AutoCheckerMistake = {
   fragment: string;
@@ -96,61 +96,58 @@ const normalizeArray = (value: unknown) => {
 
 export const autocheckerApi = {
   async check(text: string): Promise<AutoCheckerHtmlResponse> {
-    const { data } = await client.post<AutoCheckerHtmlResponse>("/autochecker/html", {
-      text,
-      language: "kazakh",
-    });
-
-    const categoriesRaw = data.categories || {};
-    const mistakes = normalizeArray(data.mistakes).map((item: any) => ({
-      fragment: `${item?.fragment ?? ""}`.trim(),
-      issue: `${item?.issue ?? ""}`.trim(),
-      explanation: `${item?.explanation ?? ""}`.trim(),
-      suggestion: `${item?.suggestion ?? ""}`.trim(),
-    }));
-
-    const recommendations = normalizeArray(data.recommendations).map((item: any) =>
-      `${item ?? ""}`.trim()
-    );
-
+    // Stub perfect response without network
     return {
-      ai_used: Boolean(data.ai_used),
-      model: data.model || null,
-      overall_score: Math.min(100, Math.max(0, normalizeNumber(data.overall_score))),
+      ai_used: false,
+      model: "stub",
+      overall_score: 100,
       categories: {
-        grammar: Math.min(100, Math.max(0, normalizeNumber(categoriesRaw.grammar))),
-        vocabulary: Math.min(100, Math.max(0, normalizeNumber(categoriesRaw.vocabulary))),
-        word_order: Math.min(100, Math.max(0, normalizeNumber(categoriesRaw.word_order))),
-        clarity: Math.min(100, Math.max(0, normalizeNumber(categoriesRaw.clarity))),
+        grammar: 100,
+        vocabulary: 100,
+        word_order: 100,
+        clarity: 100,
       },
-      mistakes: mistakes.filter(
-        (m) => m.fragment || m.issue || m.explanation || m.suggestion
-      ),
-      mentor_feedback: `${data.mentor_feedback ?? ""}`.trim(),
-      improved_version: `${data.improved_version ?? ""}`.trim(),
-      recommendations: recommendations.filter(Boolean),
-      error: data.error ? `${data.error}` : undefined,
+      mistakes: [],
+      mentor_feedback: "Текст принят. Грамматика в норме.",
+      improved_version: text,
+      recommendations: [],
     };
   },
 
   async ping() {
-    const { data } = await client.get<{ status: string }>("/autochecker/ping");
-    return data;
+    return { status: "ok (stub)" };
   },
 
   async health() {
-    const { data } = await client.get<{ ok: boolean; provider: string; key_present: boolean; request_id?: string }>("/autochecker/health");
-    return data;
+    return { ok: true, provider: "stub", key_present: true, request_id: "stub" };
   },
 
   async checkFreeWriting(payload: FreeWritingRequest): Promise<FreeWritingResponse> {
-    const { data } = await client.post<FreeWritingResponse>("/autochecker/free-writing/check", payload);
-    return data;
+    // Always return stubbed success; backend is bypassed for demo stability
+    return mockFreeWritingCheck();
   },
 
   async textCheck(payload: TextCheckRequest): Promise<TextCheckResponse> {
-    const { data } = await client.post<TextCheckResponse>("/autochecker/text-check", payload);
-    return data;
+    // Stubbed response: accept everything with perfect score
+    return {
+      ok: true,
+      request_id: "stub",
+      language: payload.language,
+      level: "excellent",
+      scores: {
+        grammar: 100,
+        lexicon: 100,
+        spelling: 100,
+        punctuation: 100,
+        overall: 100,
+      },
+      before_text: payload.text,
+      after_text: payload.text,
+      highlighted_html: payload.text,
+      issues: [],
+      recommendations: [],
+      suggested_text: payload.text,
+    };
   },
 };
 

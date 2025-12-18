@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import QuizOption from "@/components/QuizOption";
 import ProgressBar from "@/components/ProgressBar";
 import { useTestStore } from "@/store/testStore";
+import { resolveQuestionText } from "@/utils/question";
 
 export default function LevelTestQuestionPage() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function LevelTestQuestionPage() {
   const question = questions[index];
   const selected = answers[index];
   const progressValue = questions.length ? Math.round(((index + 1) / questions.length) * 100) : 0;
+  const questionText = resolveQuestionText(question) || `Вопрос ${question?.id ?? index + 1}`;
 
   const next = async () => {
     if (index + 1 < questions.length) {
@@ -52,7 +54,7 @@ export default function LevelTestQuestionPage() {
       <div className="flex items-center justify-between gap-3">
         <div className="w-full text-center">
           <h1 className="text-3xl font-semibold text-white leading-snug">
-            {index + 1}.{" "}{question.question}
+            {index + 1}.{" "}{questionText}
           </h1>
         </div>
         <span className="shrink-0 rounded-full bg-slate px-3 py-1 text-xs font-semibold text-ink shadow-soft">

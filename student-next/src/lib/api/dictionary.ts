@@ -17,9 +17,8 @@ export type DictionaryStats = {
 };
 
 export const dictionaryApi = {
-  async getDictionaryWords(opts?: { lessonId?: number | string }): Promise<DictionaryWord[]> {
-    const query = opts?.lessonId ? `?lessonId=${opts.lessonId}` : "";
-    const { data } = await client.get<DictionaryWord[]>(`/dictionary${query}`);
+  async getDictionaryWords(): Promise<DictionaryWord[]> {
+    const { data } = await client.get<DictionaryWord[]>("/dictionary");
     return (data || []).map((w) => ({
       ...w,
       progress: w.progress || { success: 0, fails: 0, last_review: null },

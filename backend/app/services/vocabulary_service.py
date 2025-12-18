@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import random
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -17,6 +18,7 @@ AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_MODES = {"repeat", "mc", "write", "multiple_choice"}
 _CACHE_TTL = timedelta(seconds=45)
 _cache_ids: dict[tuple[int, bool], dict] = {}
+logger = logging.getLogger(__name__)
 
 
 def _now() -> datetime:
@@ -37,14 +39,17 @@ def _extract_word_fields(word_data) -> dict:
     definition = get("definition") or get("description") or translation
     example_sentence = get("example_sentence") or get("example") or ""
     image_url = get("image_url") or None
+    audio_path = get("audio_path") or None
     audio_url = get("audio_url") or None
+    audio_value = audio_path or audio_url
     return {
         "word": clean_encoding(str(word or "").strip()),
         "translation": clean_encoding(str(translation or "").strip()),
         "definition": clean_encoding(str(definition or "").strip()),
         "example_sentence": clean_encoding(str(example_sentence or "").strip()),
         "image_url": image_url,
-        "audio_url": audio_url,
+        "audio_path": audio_path,
+        "audio_url": audio_value,
     }
 
 
@@ -71,20 +76,6 @@ def add_word_to_dictionary(
         .first()
     )
     if existing:
-        updated = False
-        if source_lesson_id and not existing.source_lesson_id:
-            existing.source_lesson_id = source_lesson_id
-            updated = True
-        if source_block_id and not existing.source_block_id:
-            existing.source_block_id = source_block_id
-            updated = True
-        if not existing.status:
-            existing.status = status
-            updated = True
-        if updated:
-            db.add(existing)
-            db.commit()
-            db.refresh(existing)
         return existing, False
 
     entry = models.VocabularyWord(
@@ -158,30 +149,25 @@ def extract_words_from_blocks(blocks: List[dict]) -> List[dict]:
     for block in blocks or []:
         btype = (block.get("type") or block.get("block_type") or "").lower()
         content = block.get("content") or block.get("data") or {}
-        if btype == "flashcards":
-            for card in content.get("cards") or []:
-                words.append(
-                    {
-                        "word": card.get("word") or card.get("front"),
-                        "translation": card.get("translation") or card.get("back"),
-                        "example": card.get("example") or card.get("example_sentence"),
-                        "image_url": card.get("image_url"),
-                        "audio_url": card.get("audio_url"),
-                        "source_block_id": block.get("id"),
-                    }
-                )
+        
+        if btype in {"flashcards", "flashcard"}:
+            cards = content.get("cards") or []
+            for card in cards:
+                word_entry = {
+                    "word": card.get("word") or card.get("front"),
+                    "translation": card.get("translation") or card.get("back"),
+                    "example": card.get("example") or card.get("example_sentence"),
+                    "image_url": card.get("image_url"),
+                    "audio_path": card.get("audio_path"),
+                    "audio_url": card.get("audio_url"),
+                    "source_block_id": block.get("id"),
+                }
+                if word_entry["word"]:  # Only add if word is not empty
+                    words.append(word_entry)
         elif btype == "pronunciation":
-            for item in content.get("items") or []:
-                words.append(
-                    {
-                        "word": item.get("word"),
-                        "translation": item.get("translation") or item.get("expected_pronunciation"),
-                        "example": item.get("example") or item.get("example_sentence"),
-                        "image_url": item.get("image_url"),
-                        "audio_url": item.get("audio_url"),
-                        "source_block_id": block.get("id"),
-                    }
-                )
+            # Skip pronunciation blocks - they don't have translations
+            # Flashcard blocks already contain all the data we need
+            continue
     return words
 
 
@@ -190,21 +176,29 @@ def sync_lesson_vocabulary(user_id: int, lesson: models.Lesson, blocks: List[dic
     if not lesson or not lesson.module or not lesson.module.course:
         return 0
     course_id = lesson.module.course.id
+    # Extract words from normalized blocks only - don't duplicate from lesson.flashcards
+    # because they're already included in the normalized blocks via normalize_block -> _collect_flashcards
+    words = extract_words_from_blocks(blocks)
+
     seen: set[str] = set()
     existing = {
         (w.word or "").strip().lower(): w
         for w in db.query(models.VocabularyWord).filter(models.VocabularyWord.user_id == user_id).all()
     }
     added = 0
-    for item in extract_words_from_blocks(blocks):
-        key = (item.get("word") or "").strip().lower()
+    skipped = 0
+    total_candidates = len(words)
+    for item in words:
+        fields = _extract_word_fields(item)
+        key = (fields.get("word") or "").strip().lower()
         if not key or key in seen or key in existing:
+            skipped += 1
             continue
         seen.add(key)
         _, created = add_word_to_dictionary(
             user_id,
             course_id,
-            item,
+            fields,
             db,
             source_lesson_id=lesson.id,
             source_block_id=item.get("source_block_id"),
@@ -213,6 +207,8 @@ def sync_lesson_vocabulary(user_id: int, lesson: models.Lesson, blocks: List[dic
         if created:
             added += 1
             existing[key] = True
+        else:
+            skipped += 1
     return added
 
 

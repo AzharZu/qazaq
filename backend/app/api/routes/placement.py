@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/placement", tags=["placement"])
 
 @router.get("/questions", response_model=PlacementQuestionsResponse)
 def placement_questions(request: Request, limit: int = 20, db: Session = Depends(deps.current_db)):
-    user = deps.require_user(request, db=db)
+    user = deps.get_user_or_none(request, db=db)
     age = user.age if user else None
     normalized_limit = max(1, min(int(limit or 20), 50))
     questions = select_questions(age, normalized_limit)
@@ -35,7 +35,7 @@ def placement_questions(request: Request, limit: int = 20, db: Session = Depends
 @router.get("/start")
 @router.post("/start")
 def placement_start(request: Request, db: Session = Depends(deps.current_db)):
-    user = deps.require_user(request, db=db)
+    user = deps.get_user_or_none(request, db=db)
     age = user.age if user else None
     return start_run(request.session, age)
 
@@ -43,7 +43,7 @@ def placement_start(request: Request, db: Session = Depends(deps.current_db)):
 @router.get("/next")
 @router.post("/next")
 def placement_next(request: Request, db: Session = Depends(deps.current_db)):
-    user = deps.require_user(request, db=db)
+    user = deps.get_user_or_none(request, db=db)
     age = user.age if user else None
     return next_question(request.session, age)
 
@@ -54,7 +54,7 @@ def placement_answer(payload: dict, request: Request, db: Session = Depends(deps
     Compatibility endpoint: logs answer during the run and also supports
     the new payload {question_id, selected_option} for analytics.
     """
-    user = deps.require_user(request, db=db)
+    user = deps.get_user_or_none(request, db=db)
     age = user.age if user else None
 
     # New-style payload: persist answers in the session for finish()
@@ -84,10 +84,15 @@ def placement_result(request: Request, db: Session = Depends(deps.current_db)):
     result = request.session.get("placement_result")
     if not result:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Placement not finished")
-    user = deps.require_user(request, db=db)
+    user = deps.get_user_or_none(request, db=db)
     age = user.age if user else None
     target = user.target if user else None
-    recommended_slug = recommend_course_slug(age, target)
+    result_level = None
+    try:
+        result_level = result.get("level")
+    except Exception:
+        result_level = None
+    recommended_slug = recommend_course_slug(age, target, result_level)
     result = dict(result)
     result["recommended_course"] = recommended_slug
     request.session["placement_result"] = result
@@ -113,7 +118,7 @@ def placement_result(request: Request, db: Session = Depends(deps.current_db)):
 
 @router.post("/finish", response_model=PlacementResult)
 def placement_finish(payload: PlacementFinishPayload, request: Request, db: Session = Depends(deps.current_db)):
-    user = deps.require_user(request, db=db)
+    user = deps.get_user_or_none(request, db=db)
     age = user.age if user else None
     target = user.target if user else None
     limit = max(1, min(payload.limit or 20, 50))
@@ -125,7 +130,7 @@ def placement_finish(payload: PlacementFinishPayload, request: Request, db: Sess
     # Normalize totals to the requested limit for consistency
     computed["total"] = min(computed.get("total") or limit, limit)
 
-    recommended_slug = recommend_course_slug(age, target)
+    recommended_slug = recommend_course_slug(age, target, computed.get("level"))
     result_payload = {
         "level": computed["level"],
         "recommended_course": recommended_slug,
@@ -135,15 +140,20 @@ def placement_finish(payload: PlacementFinishPayload, request: Request, db: Sess
     }
     request.session["placement_result"] = result_payload
     request.session["recommended_course_slug"] = recommended_slug
-    db.add(
-        models.PlacementTestResult(
-            user_id=user.id,
-            level=computed["level"],
-            score=computed["score"],
-            answers={"questions": computed["answers"], "total": computed["total"], "raw_score": computed["raw_score"]},
+    if user:
+        db.add(
+            models.PlacementTestResult(
+                user_id=user.id,
+                level=computed["level"],
+                score=computed["score"],
+                answers={
+                    "questions": computed["answers"],
+                    "total": computed["total"],
+                    "raw_score": computed["raw_score"],
+                },
+            )
         )
-    )
-    user.level = computed["level"]
-    db.add(user)
-    db.commit()
+        user.level = computed["level"]
+        db.add(user)
+        db.commit()
     return result_payload

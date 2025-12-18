@@ -17,11 +17,14 @@ def _issue_session_response(user, request: Request) -> JSONResponse:
     settings = get_settings()
     is_admin = (user.role or "").lower() == "admin" or (user.email or "").lower() in (settings.admin_emails or [])
     user_payload = UserOut.model_validate(user).model_dump()
+    if not user_payload.get("name"):
+        user_payload["name"] = getattr(user, "full_name", None) or (user.email.split("@")[0] if user.email else None)
+    user_payload["full_name"] = user_payload.get("full_name") or user_payload.get("name")
     user_payload["role"] = user.role
     user_payload["is_admin"] = is_admin
     response = JSONResponse({"token": session_token, "user": user_payload})
     attach_session_cookie(response, session_token)
-    request.session["course_slug"] = recommend_course_slug(user.age, user.target)
+    request.session["course_slug"] = recommend_course_slug(user.age, user.target, getattr(user, "level", None))
     return response
 
 
@@ -67,6 +70,9 @@ def me(request: Request, db: Session = Depends(deps.current_db)):
     settings = get_settings()
     is_admin = (user.role or "").lower() == "admin" or (user.email or "").lower() in (settings.admin_emails or [])
     payload = UserOut.model_validate(user).model_dump()
+    if not payload.get("name"):
+        payload["name"] = getattr(user, "full_name", None) or (user.email.split("@")[0] if user.email else None)
+    payload["full_name"] = payload.get("full_name") or payload.get("name")
     payload["role"] = user.role
     payload["is_admin"] = is_admin
     return payload
