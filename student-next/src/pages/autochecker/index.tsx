@@ -1,11 +1,16 @@
 import Head from "next/head";
 import { useMemo, useState } from "react";
-import DOMPurify from "isomorphic-dompurify";
 import { autocheckerApi, TextCheckIssue, TextCheckResponse } from "@/lib/api/autochecker";
 
 const LANG_OPTIONS: Array<{ value: "ru" | "kk"; label: string }> = [
   { value: "ru", label: "Русский" },
   { value: "kk", label: "Қазақша" },
+];
+
+const LEVEL_OPTIONS: Array<{ value: "A1" | "A2" | "B1"; label: string }> = [
+  { value: "A1", label: "A1" },
+  { value: "A2", label: "A2" },
+  { value: "B1", label: "B1" },
 ];
 
 const COPY = {
@@ -21,12 +26,12 @@ const COPY = {
     before: "До",
     after: "После",
     issuesTitle: "Найденные ошибки",
-    recommendations: "Рекомендации",
-    suggested: "Предложенный вариант текста",
     noIssues: "Ошибки не найдены",
-    noRecommendations: "Рекомендаций пока нет",
-    suggestedHint: "Это предложение не должно восприниматься как готовый текст «под ключ».",
     scoreLabel: "Оценка",
+    levelLabel: "Уровень проверки",
+    originalLabel: "Исходный текст",
+    correctedLabel: "Исправленный текст",
+    warning: "Язык автоматически переключен на казахский.",
   },
   kk: {
     title: "Мәтінге арналған AI-көмекші",
@@ -40,17 +45,14 @@ const COPY = {
     before: "Алдыңғы нұсқа",
     after: "Кейінгі нұсқа",
     issuesTitle: "Табылған қателер",
-    recommendations: "Ұсыныстар",
-    suggested: "Ұсынылған мәтін",
     noIssues: "Қателер табылмады",
-    noRecommendations: "Ұсыныстар жоқ",
-    suggestedHint: "Бұл нұсқа дайын мәтін емес, тек ИИ-дің ұсынысы.",
     scoreLabel: "Баға",
+    levelLabel: "Тексеру деңгейі",
+    originalLabel: "Бастапқы мәтін",
+    correctedLabel: "Түзетілген нұсқа",
+    warning: "Мәтін қазақша анықталды, тіл автоматты түрде түзетілді.",
   },
 };
-
-const ALLOWED_TAGS = ["mark", "span", "br", "p"];
-const ALLOWED_ATTR = ["data-error-id", "class"];
 
 function ScoreBar({ label, value, max = 10 }: { label: string; value: number; max?: number }) {
   const safe = Math.max(0, Math.min(max, Math.round(value)));
@@ -74,6 +76,9 @@ function IssueCard({ issue, lang }: { issue: TextCheckIssue; lang: "ru" | "kk" }
       ? { grammar: "Грамматика", lexicon: "Лексика", spelling: "Орфография", punctuation: "Тыныс белгілері" }
       : { grammar: "Грамматика", lexicon: "Лексика", spelling: "Орфография", punctuation: "Пунктуация" };
   const label = typeLabels[issue.type as keyof typeof typeLabels] || issue.type;
+  const badLabel = lang === "kk" ? "Қате үзінді" : "Проблемный фрагмент";
+  const fixLabel = lang === "kk" ? "Дұрыс нұсқа" : "Правильный вариант";
+  const whyLabel = lang === "kk" ? "Неге" : "Почему";
 
   return (
     <div className="space-y-3 rounded-xl bg-midnight p-4 shadow-inner">
@@ -84,16 +89,16 @@ function IssueCard({ issue, lang }: { issue: TextCheckIssue; lang: "ru" | "kk" }
         </span>
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-semibold text-white">{issue.title}</p>
-        <p className="text-sm text-ink/80">{issue.explanation}</p>
+        <p className="text-sm font-semibold text-white">{badLabel}</p>
+        <p className="text-sm text-ink/80">{issue.bad_excerpt || "—"}</p>
       </div>
       <div className="space-y-1 rounded-lg bg-slate/50 p-3 text-sm text-ink/90">
-        <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">{lang === "kk" ? "Дейін" : "До"}</p>
-        <p>{issue.before || "—"}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">{fixLabel}</p>
+        <p>{issue.fix || "—"}</p>
       </div>
       <div className="space-y-1 rounded-lg bg-slate/50 p-3 text-sm text-ink/90">
-        <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">{lang === "kk" ? "Кейін" : "После"}</p>
-        <p>{issue.after || "—"}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">{whyLabel}</p>
+        <p>{issue.why || "—"}</p>
       </div>
     </div>
   );
@@ -101,6 +106,7 @@ function IssueCard({ issue, lang }: { issue: TextCheckIssue; lang: "ru" | "kk" }
 
 export default function AutoCheckerPage() {
   const [language, setLanguage] = useState<"ru" | "kk">("kk");
+  const [level, setLevel] = useState<"A1" | "A2" | "B1">("A1");
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,15 +114,8 @@ export default function AutoCheckerPage() {
 
   const copy = COPY[language];
 
-  const sanitizedHighlight = useMemo(() => {
-    const source = (result?.highlighted_html && result.highlighted_html.trim()) || result?.before_text || "";
-    if (!source) return "";
-    return DOMPurify.sanitize(source, { ALLOWED_TAGS, ALLOWED_ATTR });
-  }, [result]);
-
   const mentorNote = useMemo(() => {
-    if (result?.recommendations?.length) return result.recommendations[0];
-    if (result?.issues?.length) return result.issues[0].explanation;
+    if (result?.issues?.length) return result.issues[0].why;
     return language === "kk" ? "Мәтінді тексеру үшін жоғарыда мәтін енгізіңіз." : "Введите текст выше, чтобы получить проверку.";
   }, [language, result]);
 
@@ -128,11 +127,14 @@ export default function AutoCheckerPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await autocheckerApi.textCheck({ text, language, mode: "full" });
+      const res = await autocheckerApi.textCheck({ text, language, level, mode: "full" });
       if (!res.ok) {
         setResult(null);
         setError(res.error || (language === "kk" ? "LLM қатесі" : "Ошибка LLM"));
       } else {
+        if (res.language && res.language !== language) {
+          setLanguage(res.language);
+        }
         setResult(res);
       }
     } catch (err: any) {
@@ -197,7 +199,7 @@ export default function AutoCheckerPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
               onClick={handleCheck}
@@ -217,6 +219,20 @@ export default function AutoCheckerPage() {
             >
               {language === "kk" ? "Тазарту" : "Очистить"}
             </button>
+            <div className="flex items-center gap-2 rounded-xl bg-slate px-3 py-2 text-xs text-ink shadow-inner">
+              <span className="font-semibold">{copy.levelLabel}</span>
+              <select
+                value={level}
+                onChange={(e) => setLevel(e.target.value as "A1" | "A2" | "B1")}
+                className="rounded-lg border border-slate/50 bg-midnight px-3 py-1 text-xs text-ink shadow-inner focus:border-gold focus:outline-none"
+              >
+                {LEVEL_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {error ? <div className="rounded-xl border border-red-500/40 bg-red-900/40 px-4 py-3 text-sm text-red-100">{error}</div> : null}
@@ -226,19 +242,20 @@ export default function AutoCheckerPage() {
           <section className="space-y-6">
             <div className="grid gap-4 md:grid-cols-3">
               <div className="rounded-2xl bg-panel p-5 shadow-card">
-                <p className="text-sm font-semibold uppercase tracking-wide text-gold">{language === "kk" ? "Деңгей" : "Уровень"}</p>
+                <p className="text-sm font-semibold uppercase tracking-wide text-gold">{copy.levelLabel}</p>
                 <div className="mt-3 flex items-center gap-3">
                   <span className="rounded-full bg-slate px-3 py-1 text-sm font-semibold text-ink">{result.level}</span>
-                  <span className="rounded-full bg-slate/60 px-3 py-1 text-xs font-semibold text-ink/80">{copy.scoreLabel}: {result.scores.overall}</span>
+                  <span className="rounded-full bg-slate/60 px-3 py-1 text-xs font-semibold text-ink/80">{copy.scoreLabel}: {result.score}</span>
                 </div>
-                <p className="mt-2 text-xs text-ink/60">{copy.languageLabel}: {language === "kk" ? "Қазақша" : "Русский"}</p>
+                <p className="mt-2 text-xs text-ink/60">{copy.languageLabel}: {result.language === "kk" ? "Қазақша" : "Русский"}</p>
+                {result.warning ? <p className="mt-2 text-xs text-amber-200">{copy.warning}</p> : null}
               </div>
               <div className="rounded-2xl bg-panel p-5 shadow-card md:col-span-2">
                 <div className="grid gap-3 md:grid-cols-2">
-                  <ScoreBar label={language === "kk" ? "Грамматика" : "Грамматика"} value={result.scores.grammar} />
-                  <ScoreBar label={language === "kk" ? "Лексика" : "Лексика"} value={result.scores.lexicon} />
-                  <ScoreBar label={language === "kk" ? "Орфография" : "Орфография"} value={result.scores.spelling} />
-                  <ScoreBar label={language === "kk" ? "Тыныс белгілері" : "Пунктуация"} value={result.scores.punctuation} />
+                  <ScoreBar label={language === "kk" ? "Грамматика" : "Грамматика"} value={result.summary.grammar} />
+                  <ScoreBar label={language === "kk" ? "Лексика" : "Лексика"} value={result.summary.lexicon} />
+                  <ScoreBar label={language === "kk" ? "Орфография" : "Орфография"} value={result.summary.spelling} />
+                  <ScoreBar label={language === "kk" ? "Тыныс белгілері" : "Пунктуация"} value={result.summary.punctuation} />
                 </div>
               </div>
             </div>
@@ -248,22 +265,14 @@ export default function AutoCheckerPage() {
               <p className="mt-2 text-sm text-ink">{mentorNote}</p>
             </div>
 
-            <div className="rounded-2xl bg-panel p-5 shadow-card">
-              <p className="text-sm font-semibold text-gold">{copy.highlightTitle}</p>
-              <div
-                className="mt-3 min-h-[120px] rounded-xl bg-midnight p-4 text-sm leading-relaxed text-ink shadow-inner"
-                dangerouslySetInnerHTML={{ __html: sanitizedHighlight || result.before_text }}
-              />
-            </div>
-
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl bg-panel p-5 shadow-card">
-                <p className="text-sm font-semibold text-gold">{copy.before}</p>
-                <p className="mt-2 min-h-[120px] rounded-xl bg-midnight p-4 text-sm text-ink shadow-inner whitespace-pre-wrap">{result.before_text || "—"}</p>
+                <p className="text-sm font-semibold text-gold">{copy.originalLabel}</p>
+                <p className="mt-2 min-h-[120px] rounded-xl bg-midnight p-4 text-sm text-ink shadow-inner whitespace-pre-wrap">{result.original_text || "—"}</p>
               </div>
               <div className="rounded-2xl bg-panel p-5 shadow-card">
-                <p className="text-sm font-semibold text-gold">{copy.after}</p>
-                <p className="mt-2 min-h-[120px] rounded-xl bg-midnight p-4 text-sm text-ink shadow-inner whitespace-pre-wrap">{result.after_text || "—"}</p>
+                <p className="text-sm font-semibold text-gold">{copy.correctedLabel}</p>
+                <p className="mt-2 min-h-[120px] rounded-xl bg-midnight p-4 text-sm text-ink shadow-inner whitespace-pre-wrap">{result.corrected_text || "—"}</p>
               </div>
             </div>
 
@@ -274,37 +283,13 @@ export default function AutoCheckerPage() {
               </div>
               {result.issues?.length ? (
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  {result.issues.map((issue) => (
-                    <IssueCard key={issue.id} issue={issue} lang={language} />
+                  {result.issues.map((issue, idx) => (
+                    <IssueCard key={`${issue.type}-${idx}`} issue={issue} lang={language} />
                   ))}
                 </div>
               ) : (
                 <p className="mt-3 text-sm text-ink/70">{copy.noIssues}</p>
               )}
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl bg-panel p-5 shadow-card">
-                <p className="text-sm font-semibold text-gold">{copy.recommendations}</p>
-                {result.recommendations?.length ? (
-                  <ul className="mt-3 space-y-2 text-sm text-ink">
-                    {result.recommendations.map((rec, idx) => (
-                      <li key={idx} className="flex gap-2">
-                        <span className="mt-1 h-2 w-2 rounded-full bg-gold" aria-hidden />
-                        <span>{rec}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-2 text-sm text-ink/70">{copy.noRecommendations}</p>
-                )}
-              </div>
-
-              <div className="rounded-2xl bg-panel p-5 shadow-card">
-                <p className="text-sm font-semibold text-gold">{copy.suggested}</p>
-                <p className="mt-2 min-h-[120px] rounded-xl bg-midnight p-4 text-sm text-ink shadow-inner whitespace-pre-wrap">{result.suggested_text || "—"}</p>
-                <p className="mt-2 text-xs text-ink/50">{copy.suggestedHint}</p>
-              </div>
             </div>
           </section>
         ) : null}

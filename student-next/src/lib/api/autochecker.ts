@@ -46,39 +46,36 @@ export type FreeWritingResponse = {
 export type TextCheckRequest = {
   text: string;
   language: "ru" | "kk";
+  level: "A1" | "A2" | "B1";
   mode?: string;
 };
 
 export type TextCheckIssue = {
-  id: string;
   type: "grammar" | "lexicon" | "spelling" | "punctuation" | string;
-  title: string;
-  explanation: string;
-  before: string;
-  after: string;
-  start: number;
-  end: number;
   severity: "low" | "medium" | "high" | string;
+  bad_excerpt: string;
+  fix: string;
+  why: string;
+};
+
+export type TextCheckSummary = {
+  grammar: number;
+  lexicon: number;
+  spelling: number;
+  punctuation: number;
 };
 
 export type TextCheckResponse = {
   ok: boolean;
   request_id?: string;
   language: "ru" | "kk";
-  level: string;
-  scores: {
-    grammar: number;
-    lexicon: number;
-    spelling: number;
-    punctuation: number;
-    overall: number;
-  };
-  before_text: string;
-  after_text: string;
-  highlighted_html: string;
+  level: "A1" | "A2" | "B1" | string;
+  score: number;
+  summary: TextCheckSummary;
   issues: TextCheckIssue[];
-  recommendations: string[];
-  suggested_text: string;
+  corrected_text: string;
+  original_text: string;
+  warning?: string;
   error?: string;
   details?: any;
 };

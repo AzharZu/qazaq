@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import uuid
 from string import Template
 from typing import Any
@@ -21,11 +22,11 @@ free_writing_service = FreeWritingService(client=llm_client)
 logger = logging.getLogger(__name__)
 
 LLM_SYSTEM_PROMPT = """
-YТы — профессиональный преподаватель казахского языка (Qazaq tili),
+Ты — профессиональный преподаватель казахского языка (Qazaq tili),
 лингвист и методист. Ты проверяешь письменные тексты учеников.
 
 ВАЖНО:
-— Отвечай СТРОГО на языке текста пользователя:
+— NEVER TRANSLATE: отвечай строго на языке исходного текста.
   • если текст на казахском → отвечай ТОЛЬКО на казахском
   • если текст на русском → отвечай ТОЛЬКО на русском
 — НИКОГДА не используй английский язык
@@ -81,59 +82,89 @@ YТы — профессиональный преподаватель казах
 — оценки должны быть честными (не завышай)
 — не придумывай ошибок
 — не используй слова вроде «возможно», если правило чёткое
+— НИКОГДА не переводить текст на другой язык
 
 Ты — не чат-бот, ты — строгий, но доброжелательный учитель.
 """
 
-# New Grok-based text evaluation prompt template (language-specific).
-# New Grok-based text evaluation prompt template (language-specific).
+KAZAKH_CHARS = {"ә", "ғ", "қ", "ң", "ө", "ұ", "ү", "һ", "і", "Ә", "Ғ", "Қ", "Ң", "Ө", "Ұ", "Ү", "Һ", "І"}
+COMMON_KK_WORDS = {"сәлем", "қазақ", "үй", "және", "бар", "жоқ", "бүгін", "ертең", "сабағы", "мәтін", "оқушы"}
+
+LEVEL_INSTRUCTIONS = {
+    "A1": "Level A1: simplify explanations, avoid linguistic terms, list no more than 7 concise issues, keep guidance short and clear.",
+    "A2": "Level A2: give a bit more detail, practical tips, up to 10 issues with short rationales.",
+    "B1": "Level B1: be stricter about style and coherence, up to 15 issues, explanations stay focused without fluff.",
+}
+
 TEXT_CHECK_PROMPT = Template(
     """
-You are a strict writing evaluator. Language: $lang_name ($lang_code). Respond ONLY in this language.
+SYSTEM: NEVER TRANSLATE. If the input is Kazakh, respond ONLY in Kazakh, keep meaning, and do not retell. Role: strict Kazakh language mentor.
+Language: $lang_name ($lang_code). Level: $level. Request ID: $request_id.
+$level_rules
 
-Return ONLY valid JSON (no markdown, no comments) with EXACTLY these keys:
+Return ONLY valid JSON (no markdown, no comments) exactly in this shape:
 {
-  "ok": true,
-  "request_id": "$request_id",
   "language": "$lang_code",
-  "level": "A1|A2|B1|B2|C1|C2",
-  "scores": {
+  "level": "$level",
+  "score": 0-100,
+  "summary": {
     "grammar": 0-10,
     "lexicon": 0-10,
     "spelling": 0-10,
-    "punctuation": 0-10,
-    "overall": 0-100
+    "punctuation": 0-10
   },
-  "before_text": "<original text>",
-  "after_text": "<improved text in same language>",
-  "highlighted_html": "<safe HTML with <mark data-error-id='...'>...</mark>>",
   "issues": [
     {
-      "id": "e1",
       "type": "grammar|lexicon|spelling|punctuation",
-      "title": "<short title>",
-      "explanation": "<why it's wrong>",
-      "before": "<incorrect fragment>",
-      "after": "<corrected fragment>",
-      "start": 0,
-      "end": 0,
-      "severity": "low|medium|high"
+      "severity": "low|medium|high",
+      "bad_excerpt": "<қате үзінді>",
+      "fix": "<дұрыс нұсқа>",
+      "why": "қысқа түсіндірме қазақша"
     }
   ],
-  "recommendations": ["...", "..."],
-  "suggested_text": "<best final version>"
+  "corrected_text": "<толық түзетілген мәтін, мағынасы сақталсын>"
 }
 
 Rules:
-- Use plain text, no markdown, no code fences.
-- start/end are character indices inside before_text.
-- highlighted_html must align with issues using <mark data-error-id='...'>.
-- If language is Kazakh (kk), strictly handle ә, ғ, қ, ң, ө, ұ, ү, һ; check септіктер, орфография, пунктуация.
-- If language is Russian (ru), focus on согласование, падежи, пунктуация.
-- Do NOT add any keys or explanations outside the JSON. Return ONLY JSON.
+- NEVER TRANSLATE or change language; answer in Kazakh when input is Kazakh.
+- Use Kazakh orthography (ә, ғ, қ, ң, ө, ұ, ү, һ, і) and keep the same meaning.
+- No summaries, no retelling — only corrections and brief explanations.
+- Issues must be real; if no issues, return an empty list and keep corrected_text identical to the input.
+- Limit issues to $max_issues items; be concise per the level guidance.
+- Tailor strictness to the level (A1 simpler, B1 more detailed).
+
+User text:
+$user_text
 """
 )
 
+
+
+def _looks_like_kazakh(text: str) -> bool:
+    """Lightweight heuristic to detect Kazakh text."""
+    if not text:
+        return False
+    lowered = text.lower()
+    if any(ch in KAZAKH_CHARS for ch in lowered):
+        return True
+    words = re.findall(r"[a-zа-яёғөңұүқһі]+", lowered)
+    if not words:
+        return False
+    if sum(1 for w in words if w in COMMON_KK_WORDS) >= 2:
+        return True
+    cyrillic_letters = [ch for ch in lowered if "а" <= ch <= "я" or ch in {"ё", "і"}]
+    if not cyrillic_letters:
+        return False
+    kaz_ratio = sum(1 for ch in lowered if ch in {"ә", "ғ", "қ", "ң", "ө", "ұ", "ү", "һ", "і"}) / len(cyrillic_letters)
+    return kaz_ratio >= 0.08
+
+
+def _max_issues_for_level(level: str) -> int:
+    if level == "A1":
+        return 7
+    if level == "A2":
+        return 10
+    return 15
 
 
 def _get_request_id(request: Request | None = None) -> str:
@@ -369,27 +400,23 @@ class FreeWritingPayload(BaseModel):
 class TextCheckPayload(BaseModel):
     text: str = Field(..., min_length=1)
     language: str = Field(default="kk", pattern="^(kk|ru)$")
+    level: str = Field(default="A1", pattern="^(A1|A2|B1)$")
     mode: str = Field(default="full")
 
 
-class TextCheckScores(BaseModel):
+class TextCheckSummary(BaseModel):
     grammar: int = Field(0, ge=0, le=10)
     lexicon: int = Field(0, ge=0, le=10)
     spelling: int = Field(0, ge=0, le=10)
     punctuation: int = Field(0, ge=0, le=10)
-    overall: int = Field(0, ge=0, le=100)
 
 
 class TextCheckIssue(BaseModel):
-    id: str
     type: str
-    title: str
-    explanation: str
-    before: str
-    after: str
-    start: int
-    end: int
     severity: str
+    bad_excerpt: str
+    fix: str
+    why: str
 
 
 class TextCheckResponse(BaseModel):
@@ -397,13 +424,12 @@ class TextCheckResponse(BaseModel):
     request_id: str
     language: str
     level: str
-    scores: TextCheckScores
-    before_text: str
-    after_text: str
-    highlighted_html: str
+    score: int
+    summary: TextCheckSummary
     issues: list[TextCheckIssue]
-    recommendations: list[str]
-    suggested_text: str
+    corrected_text: str
+    original_text: str
+    warning: str | None = None
 
 
 def _free_writing_error(message: str, details: Any, status_code: int, request_id: str) -> ORJSONResponse:
@@ -413,96 +439,81 @@ def _free_writing_error(message: str, details: Any, status_code: int, request_id
     return ORJSONResponse(payload, status_code=status_code)
 
 
-def _safe_highlight(before: str, issues: list[TextCheckIssue]) -> str:
-    """Build highlighted HTML using <mark data-error-id='...'> spans."""
-    if not before:
-        return ""
-    result = []
-    cursor = 0
-    for issue in sorted(issues, key=lambda i: i.start):
-        start = max(0, min(len(before), issue.start))
-        end = max(start, min(len(before), issue.end))
-        if start > cursor:
-            result.append(before[cursor:start])
-        frag = before[start:end] or ""
-        result.append(f"<mark data-error-id=\"{issue.id}\">{frag}</mark>")
-        cursor = end
-    if cursor < len(before):
-        result.append(before[cursor:])
-    return "".join(result)
-
-
-def _normalize_text_response(raw: dict, req_id: str, language: str) -> TextCheckResponse | None:
+def _normalize_text_response(
+    raw: dict,
+    *,
+    req_id: str,
+    language: str,
+    level: str,
+    original_text: str,
+    enforce_kazakh: bool,
+    warning: str | None = None,
+) -> TextCheckResponse | None:
     if not isinstance(raw, dict):
         return None
 
-    def _score(val, *, overall: bool = False) -> int:
+    def _score10(val) -> int:
         try:
             num = float(val)
         except Exception:
             num = 0
-        if overall:
-            return int(max(0, min(100, round(num))))
         if num > 10:
             num = num / 10.0
         return int(max(0, min(10, round(num))))
 
-    scores_raw = raw.get("scores") or {}
-    scores = {
-        "grammar": _score(scores_raw.get("grammar")),
-        "lexicon": _score(scores_raw.get("lexicon")),
-        "spelling": _score(scores_raw.get("spelling")),
-        "punctuation": _score(scores_raw.get("punctuation")),
-        "overall": _score(scores_raw.get("overall"), overall=True),
-    }
+    def _score100(val) -> int:
+        try:
+            num = float(val)
+        except Exception:
+            num = 0
+        return int(max(0, min(100, round(num))))
 
-    before_text = raw.get("before_text") or raw.get("before") or ""
-    after_text = raw.get("after_text") or raw.get("after") or ""
-    highlighted_html = raw.get("highlighted_html") or raw.get("highlighted") or ""
+    summary_raw = raw.get("summary") or {}
+    summary = TextCheckSummary(
+        grammar=_score10(summary_raw.get("grammar")),
+        lexicon=_score10(summary_raw.get("lexicon")),
+        spelling=_score10(summary_raw.get("spelling")),
+        punctuation=_score10(summary_raw.get("punctuation")),
+    )
 
-    issues_raw = raw.get("issues") or raw.get("errors") or []
-    issues_list = []
+    issues_raw = raw.get("issues") or []
+    issues: list[TextCheckIssue] = []
     if isinstance(issues_raw, (list, tuple)):
-        for idx, item in enumerate(issues_raw):
+        for item in issues_raw:
             if not isinstance(item, dict):
                 continue
-            issues_list.append({
-                "id": item.get("id") or f"e{idx+1}",
-                "type": item.get("type") or "grammar",
-                "title": item.get("title") or item.get("explanation") or "",
-                "explanation": item.get("explanation") or item.get("reason") or "",
-                "before": item.get("before") or item.get("fragment") or "",
-                "after": item.get("after") or item.get("suggestion") or "",
-                "start": int(item.get("start") or 0),
-                "end": int(item.get("end") or 0),
-                "severity": item.get("severity") or "medium",
-            })
+            issues.append(
+                TextCheckIssue(
+                    type=str(item.get("type") or "grammar"),
+                    severity=str(item.get("severity") or "medium"),
+                    bad_excerpt=str(item.get("bad_excerpt") or item.get("fragment") or "").strip(),
+                    fix=str(item.get("fix") or item.get("suggestion") or "").strip(),
+                    why=str(item.get("why") or item.get("explanation") or item.get("reason") or "").strip(),
+                )
+            )
 
-    try:
-        payload = TextCheckResponse(
-            request_id=req_id,
-            language=language,
-            level=str(raw.get("level") or "A1").upper(),
-            scores=scores,
-            before_text=str(before_text),
-            after_text=str(after_text),
-            highlighted_html=str(highlighted_html),
-            issues=issues_list,
-            recommendations=[str(r) for r in raw.get("recommendations") or []],
-            suggested_text=str(raw.get("suggested_text") or raw.get("suggested") or ""),
-        )
-    except Exception:
-        return None
+    issues = issues[: _max_issues_for_level(level)]
+    corrected_text = str(raw.get("corrected_text") or "").strip() or original_text
 
-    if payload.level not in {"A1", "A2", "B1", "B2", "C1", "C2"}:
-        payload.level = "A1"
-    if (not payload.highlighted_html) and payload.issues:
-        payload.highlighted_html = _safe_highlight(payload.before_text, payload.issues)
+    payload = TextCheckResponse(
+        request_id=req_id,
+        language=language,
+        level=level,
+        score=_score100(raw.get("score")),
+        summary=summary,
+        issues=issues,
+        corrected_text=corrected_text,
+        original_text=original_text,
+        warning=warning,
+    )
+
+    if enforce_kazakh and not _looks_like_kazakh(payload.corrected_text):
+        raise LLMClientError("Expected Kazakh output but got non-Kazakh response")
+
     return payload
 
 
 @router.post("/free-writing/check")
-
 async def free_writing_check(payload: dict, request: Request, user=Depends(deps.require_user)):
     req_id = _get_request_id(request)
     try:
@@ -559,19 +570,43 @@ async def text_check(payload: dict, request: Request, user=Depends(deps.require_
     if len(text) > max_len:
         text = text[:max_len]
 
-    lang_name = "Kazakh" if data.language == "kk" else "Russian"
+    detected_kazakh = _looks_like_kazakh(text)
+    language = data.language
+    warning = None
+    if detected_kazakh and language != "kk":
+        language = "kk"
+        warning = "Language corrected to kk based on Kazakh text detection."
+        logger.warning("[autochecker] text-check req=%s forced language to kk (detected Kazakh text)", req_id)
+
+    level = (data.level or "A1").upper()
+    if level not in {"A1", "A2", "B1"}:
+        level = "A1"
+
+    lang_name = "Kazakh" if language == "kk" else "Russian"
     prompt = TEXT_CHECK_PROMPT.safe_substitute(
-        lang_code=data.language,
+        lang_code=language,
         lang_name=lang_name,
+        level=level,
         request_id=req_id,
-    ) + f"\n\nUser text:\n{text}"
+        level_rules=LEVEL_INSTRUCTIONS[level],
+        max_issues=_max_issues_for_level(level),
+        user_text=text,
+    )
 
     try:
         raw = await asyncio.to_thread(llm_client.generate_json, prompt, max_retries=2)
-        normalized = _normalize_text_response(raw or {}, req_id=req_id, language=data.language)
+        normalized = _normalize_text_response(
+            raw or {},
+            req_id=req_id,
+            language=language,
+            level=level,
+            original_text=text,
+            enforce_kazakh=detected_kazakh,
+            warning=warning,
+        )
         if not normalized:
             raise LLMClientError("LLM returned invalid payload")
-        return normalized.model_dump()
+        return normalized.model_dump(exclude_none=True)
     except LLMClientError as exc:
         return _free_writing_error("LLM error", str(exc), status.HTTP_502_BAD_GATEWAY, req_id)
     except Exception as exc:  # pragma: no cover
