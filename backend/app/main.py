@@ -47,7 +47,6 @@ app = FastAPI(
     default_response_class=ORJSONResponse,
 )
 
-# Build explicit origin list, ensuring student dev port (3002) is included.
 cors_origins = settings.allowed_origins or []
 if "http://localhost:3002" not in cors_origins:
     cors_origins.append("http://localhost:3002")
@@ -80,7 +79,7 @@ def _ensure_enum_values():
         return
     try:
         with SessionLocal() as db:
-            # Skip if enum type was never created (older DBs store block_type as varchar).
+ 
             exists = db.execute(text("SELECT 1 FROM pg_type WHERE typname = 'block_type_enum'")).scalar()
             if not exists:
                 return
@@ -101,26 +100,20 @@ def _ensure_enum_values():
                 )
             db.commit()
     except Exception:
-        # ENUM type doesn't exist yet, migrations haven't run
         pass
 
 
 _ensure_enum_values()
 
-# Mount static for compiled SPA assets
 ROOT_DIR = Path(__file__).resolve().parents[2]
 STUDENT_DIST = ROOT_DIR / "student-spa" / "dist"
 ADMIN_DIST = ROOT_DIR / "admin-spa" / "dist"
 BACKEND_STATIC = Path(__file__).resolve().parent / "static"
-UPLOADS_DIR = Path(settings.upload_root or ROOT_DIR / "uploads")
 
 app.mount("/app/assets", StaticFiles(directory=str(STUDENT_DIST / "assets"), check_dir=False), name="student-assets")
 app.mount("/admin/assets", StaticFiles(directory=str(ADMIN_DIST / "assets"), check_dir=False), name="admin-assets")
 app.mount("/static", StaticFiles(directory=str(BACKEND_STATIC), check_dir=False), name="static")
-# Serve uploaded files (audio/video/image) from the unified uploads folder
-app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR), check_dir=False), name="uploads")
 
-# API routers
 app.include_router(auth.router)
 app.include_router(autochecker.router)
 app.include_router(level_test.router)

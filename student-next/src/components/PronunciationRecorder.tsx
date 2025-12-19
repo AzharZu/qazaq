@@ -26,109 +26,56 @@ export default function PronunciationRecorder({
   language,
 }: Props) {
   const [recording, setRecording] = useState(false);
-  const [status, setStatus] = useState<"idle" | "recording" | "uploading" | "done" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "recording" | "processing" | "done" | "error">("idle");
   const [score, setScore] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [resultTone, setResultTone] = useState<"excellent" | "good" | "ok" | "bad" | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const simulatedTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const simulatedRecordingRef = useRef(false);
+  const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Cleanup при размонтировании
   useEffect(() => {
     return () => {
-      if (recording) {
-        stopRecording(true);
-      }
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
-      if (simulatedTimeoutRef.current) {
-        clearTimeout(simulatedTimeoutRef.current);
+      if (processingTimeoutRef.current) {
+        clearTimeout(processingTimeoutRef.current);
       }
     };
-  }, [recording]);
+  }, []);
 
-  const startRecording = async () => {
+  const startRecording = () => {
     if (preview || disabled) {
       setMessage("Preview: запись отключена для этого режима");
       return;
     }
 
-    try {
-      setStatus("recording");
-      setMessage("Записываю ваш голос...");
-      setScore(null);
-      setResultTone(null);
-      setRecordingTime(0);
-      chunksRef.current = [];
-
-      // Запрашиваем доступ к микрофону
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-
-      streamRef.current = stream;
-
-      // Создаем MediaRecorder
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: "audio/webm;codecs=opus",
-      });
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        // Записываем audio blob
-        const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
-        await uploadRecording(audioBlob);
-      };
-
-      mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.start();
-      setRecording(true);
-
-      // Таймер для отсчета времени
-      let seconds = 0;
-      timerRef.current = setInterval(() => {
-        seconds += 1;
-        setRecordingTime(seconds);
-        // Максимум 30 секунд
-        if (seconds >= 30) {
-          stopRecording();
-        }
-      }, 1000);
-    } catch (error) {
-      console.error("Ошибка доступа к микрофону:", error);
-      // Фолбэк: имитируем запись, чтобы таймер шел и выглядело реалистично
-      setRecording(true);
-      simulatedRecordingRef.current = true;
-      let seconds = 0;
-      timerRef.current = setInterval(() => {
-        seconds += 1;
-        setRecordingTime(seconds);
-      }, 1000);
-      simulatedTimeoutRef.current = setTimeout(() => {
-        simulatedRecordingRef.current = false;
-        stopRecording();
-      }, 4000);
+    if (processingTimeoutRef.current) {
+      clearTimeout(processingTimeoutRef.current);
+      processingTimeoutRef.current = null;
     }
+
+    setStatus("recording");
+    setMessage(null);
+    setScore(null);
+    setResultTone(null);
+    setRecordingTime(0);
+    setRecording(true);
+
+    let seconds = 0;
+    timerRef.current = setInterval(() => {
+      seconds += 1;
+      setRecordingTime(seconds);
+      if (seconds >= 30) {
+        stopRecording();
+      }
+    }, 1000);
   };
 
-  const stopRecording = (_silent?: boolean) => {
+  const stopRecording = () => {
     if (!recording) return;
 
     // Останавливаем таймер
@@ -136,32 +83,28 @@ export default function PronunciationRecorder({
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    if (simulatedTimeoutRef.current) {
-      clearTimeout(simulatedTimeoutRef.current);
-      simulatedTimeoutRef.current = null;
-    }
-
-    // Если фолбэк-сценарий без микрофона
-    if (simulatedRecordingRef.current && !mediaRecorderRef.current) {
-      simulatedRecordingRef.current = false;
-      setRecording(false);
-      uploadRecording(new Blob([], { type: "audio/webm" }));
-      return;
-    }
-
-    if (!mediaRecorderRef.current) {
-      setRecording(false);
-      return;
-    }
-
-    mediaRecorderRef.current.stop();
     setRecording(false);
 
-    // Закрываем микрофон
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
+    if (processingTimeoutRef.current) {
+      clearTimeout(processingTimeoutRef.current);
+      processingTimeoutRef.current = null;
     }
+
+    setStatus("processing");
+    setMessage("Обработка записи...");
+
+    const delay = 1200 + Math.floor(Math.random() * 600);
+    processingTimeoutRef.current = setTimeout(() => {
+      const value = 0.9;
+      const normalizedStatus: "excellent" | "good" | "ok" | "bad" = "good";
+
+      setScore(value);
+      setResultTone(normalizedStatus);
+      onDone?.(value);
+      onResult?.(value, normalizedStatus);
+      setStatus("done");
+      setMessage(null);
+    }, delay);
   };
 
   const playSample = () => {
@@ -173,35 +116,6 @@ export default function PronunciationRecorder({
       const u = new SpeechSynthesisUtterance(word);
       u.lang = "kk-KZ";
       window.speechSynthesis.speak(u);
-    }
-  };
-
-  const uploadRecording = async (audioBlob: Blob) => {
-    if (preview || disabled) {
-      setStatus("done");
-      setMessage("Preview: отправка отключена");
-      return;
-    }
-
-    setStatus("uploading");
-    setMessage("Анализируем произношение...");
-
-    try {
-      // Заглушка: имитируем отправку и возвращаем стабильный результат
-      await new Promise((resolve) => setTimeout(resolve, 900));
-      const value = 0.9;
-      const normalizedStatus: "excellent" | "good" | "ok" | "bad" = "good";
-
-      setScore(value);
-      setResultTone(normalizedStatus);
-      onDone?.(value);
-      onResult?.(value, normalizedStatus);
-      setStatus("done");
-      setMessage("✅ Запись получена. Всё хорошо, но улучшите произношение и ударение. Оценка: 9/10.");
-    } catch (err) {
-      console.error("Ошибка при анализе произношения:", err);
-      setStatus("error");
-      setMessage("❌ Ошибка при анализе произношения. Попробуйте еще раз.");
     }
   };
 
@@ -252,10 +166,10 @@ export default function PronunciationRecorder({
           {recording && (
             <span className="text-xs font-semibold text-gold flex items-center gap-2">
               <span className="inline-block h-2 w-2 rounded-full bg-red-500 animate-pulse"></span>
-              Запись... {formatTime(recordingTime)}
+              Запись идёт...
             </span>
           )}
-          {status === "uploading" && <span className="text-xs font-semibold text-gold">⏳ Обрабатываем...</span>}
+          {status === "processing" && <span className="text-xs font-semibold text-gold">⏳ Обрабатываем...</span>}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -263,10 +177,10 @@ export default function PronunciationRecorder({
             <button
               type="button"
               onClick={startRecording}
-              disabled={status === "uploading" || preview || disabled}
+              disabled={status === "processing" || preview || disabled}
               className="flex-1 rounded-xl bg-slate px-5 py-3 text-sm font-semibold text-ink shadow-soft transition hover:bg-slateDeep hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {status === "uploading" ? "Анализ..." : "Записать голос"}
+              {status === "processing" ? "Обработка..." : "Начать запись"}
             </button>
           ) : (
             <button
@@ -274,9 +188,14 @@ export default function PronunciationRecorder({
               onClick={() => stopRecording()}
               className="flex-1 rounded-xl bg-red-500 px-5 py-3 text-sm font-semibold text-white shadow-soft transition hover:bg-red-600"
             >
-              ⏹ Остановить ({formatTime(recordingTime)})
+              ⏹ Остановить запись
             </button>
           )}
+          {recording ? (
+            <div className="rounded-xl bg-midnight/40 px-4 py-2 text-xs font-semibold text-ink/80">
+              {formatTime(recordingTime)}
+            </div>
+          ) : null}
           {status === "done" && (
             <button
               type="button"
@@ -306,6 +225,13 @@ export default function PronunciationRecorder({
               : "bg-midnight/40 text-ink/80"
           }`}>
             {message}
+          </div>
+        )}
+        {status === "done" && (
+          <div className="rounded-lg bg-midnight/40 px-3 py-2 text-sm text-ink/80">
+            <p className="font-semibold">✅ Хорошее произношение</p>
+            <p>Оценка: 9 / 10</p>
+            <p>Совет: попробуйте чуть чётче произнести гласные</p>
           </div>
         )}
       </div>

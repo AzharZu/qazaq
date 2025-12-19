@@ -6,13 +6,10 @@ from .base import Base
 
 settings = get_settings()
 
-# Use sync URL for SQLAlchemy ORM (alembic migrations)
-# PostgreSQL doesn't need check_same_thread
 connect_args = {}
 if settings.database_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
-# Convert asyncpg URL to psycopg2 for sync engine
 db_url = settings.database_url
 if "+asyncpg" in db_url:
     db_url = db_url.replace("+asyncpg", "+psycopg2")
@@ -22,7 +19,7 @@ elif db_url.startswith("postgresql://"):
 engine = create_engine(
     db_url,
     connect_args=connect_args,
-    pool_pre_ping=True,  # Verify connections before using
+    pool_pre_ping=True,  
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

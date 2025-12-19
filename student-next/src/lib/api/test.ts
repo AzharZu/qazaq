@@ -1,5 +1,5 @@
 import client from "./client";
-import { PlacementResult, TestQuestion } from "@/types/test";
+import { PlacementResult, TestQuestion, parsePlacementResult } from "@/types/test";
 
 type QuestionsResponse = {
   questions: TestQuestion[];
@@ -25,12 +25,20 @@ export const testApi = {
   async finish(answers: AnswerPayload[], limit?: number): Promise<PlacementResult> {
     const payload = { answers, limit: limit || answers.length || 20 };
     const { data } = await client.post<PlacementResult>("/placement/finish", payload);
-    return data;
+    const parsed = parsePlacementResult(data);
+    if (!parsed) {
+      throw new Error("Invalid placement result payload");
+    }
+    return parsed;
   },
 
   async result(): Promise<PlacementResult> {
     const { data } = await client.get<PlacementResult>("/placement/result");
-    return data;
+    const parsed = parsePlacementResult(data);
+    if (!parsed) {
+      throw new Error("Invalid placement result payload");
+    }
+    return parsed;
   },
 };
 

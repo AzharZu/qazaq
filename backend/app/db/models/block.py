@@ -16,7 +16,6 @@ BLOCK_TYPE_CHOICES = (
     "pronunciation",
     "audio_task",
     "free_writing",
-    # Compatibility/legacy buckets
     "quiz",
     "example",
     "assignment",

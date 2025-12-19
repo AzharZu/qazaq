@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { testApi } from "@/lib/api/test";
 import { useAuthStore } from "@/store/authStore";
 import { useTestStore } from "@/store/testStore";
@@ -20,7 +21,9 @@ const RECOMMENDED_COPY: Record<string, { name: string; description: string }> = 
   },
 };
 
-const normalizeLevel = (level?: string | null) => (level || "").toUpperCase();
+const DEFAULT_ERROR_MESSAGE = "Не удалось загрузить результат, попробуйте ещё раз";
+
+const normalizeLevel = (level?: string | null) => (typeof level === "string" ? level : "").toUpperCase();
 
 const slugFromLevel = (level?: string | null): string | null => {
   const normalized = normalizeLevel(level);
@@ -31,7 +34,7 @@ const slugFromLevel = (level?: string | null): string | null => {
   return null;
 };
 
-const extractCourseInfo = (value: PlacementResult["recommended_course"] | null | undefined): RecommendedCourseInfo | null => {
+const extractCourseInfo = (value: unknown): RecommendedCourseInfo | null => {
   if (value && typeof value === "object") return value as RecommendedCourseInfo;
   return null;
 };
@@ -41,25 +44,38 @@ export default function LevelTestResultPage() {
   const { user, setUser } = useAuthStore();
   const [data, setData] = useState<PlacementResult | null>(result);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const canSubmit = useMemo(
+    () => questions.length > 0 && answers.length === questions.length && answers.every((a) => a >= 0),
+    [answers, questions.length]
+  );
+
+  const loadResult = useCallback(async () => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      const res = canSubmit ? await finishTest() : await testApi.result();
+      if (!res) {
+        throw new Error("Пустой ответ от сервера");
+      }
+      setData(res);
+    } catch (err: any) {
+      console.error("Failed to load placement result", err);
+      const message = err?.response?.data?.detail || DEFAULT_ERROR_MESSAGE;
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [canSubmit, finishTest]);
 
   useEffect(() => {
-    if (result) return;
-    const load = async () => {
-      try {
-        if (questions.length && answers.some((a) => a >= 0)) {
-          const res = await finishTest();
-          setData(res);
-        } else {
-          const res = await testApi.result();
-          setData(res);
-        }
-      } catch (err: any) {
-        const message = err?.response?.data?.detail || err?.message || "Не удалось получить результат";
-        setError(message);
-      }
-    };
-    load();
-  }, [answers, finishTest, questions.length, result]);
+    if (result) {
+      setData(result);
+      return;
+    }
+    loadResult();
+  }, [loadResult, result]);
 
   useEffect(() => {
     if (data?.level && user) {
@@ -71,70 +87,97 @@ export default function LevelTestResultPage() {
     if (!data) return null;
 
     const courseFromRecommended = extractCourseInfo(data.recommended_course);
-    const courseFromPayload = data.course as RecommendedCourseInfo | null;
+    const courseFromPayload = extractCourseInfo(data.course);
 
-    const slugFromPayload =
+    const recommendedSlug =
       typeof data.recommended_course === "string" && data.recommended_course
         ? data.recommended_course.toLowerCase()
         : (courseFromRecommended?.slug || courseFromPayload?.slug || "").toLowerCase();
 
-    const inferredSlug = slugFromPayload || slugFromLevel(data.level);
-    if (!inferredSlug) return null;
-
-    const copy = RECOMMENDED_COPY[inferredSlug] || {};
+    const inferredSlug = recommendedSlug || slugFromLevel(data.level);
+    const copy = inferredSlug ? RECOMMENDED_COPY[inferredSlug] : undefined;
     const courseInfo = courseFromRecommended || courseFromPayload || null;
 
     return {
-      slug: inferredSlug,
-      name: copy.name || courseInfo?.name || "Рекомендуемый курс",
-      description: copy.description || courseInfo?.description || "",
+      slug: inferredSlug || courseInfo?.slug || null,
+      name: copy?.name || courseInfo?.name || "Рекомендуемый курс",
+      description:
+        copy?.description || courseInfo?.description || "Мы подберем курс под ваш уровень и цели.",
     };
   }, [data]);
 
-  if (loading && !data) {
-    return <div className="rounded-2xl bg-white p-8 shadow-sm">Подготавливаем результат...</div>;
-  }
+  const renderError = (message: string, onRetry?: () => void) => (
+    <div className="mx-auto max-w-3xl space-y-4 rounded-2xl bg-panel p-8 text-red-100 shadow-card">
+      <p className="text-sm font-semibold uppercase tracking-wide text-red-300">Ошибка</p>
+      <p className="text-sm text-red-100">{message}</p>
+      {onRetry && (
+        <button
+          onClick={onRetry}
+          className="inline-flex rounded-xl bg-gold px-5 py-3 text-sm font-semibold text-slateDeep shadow-soft transition hover:bg-goldDark"
+        >
+          Повторить
+        </button>
+      )}
+    </div>
+  );
 
-  if (error || !data) {
-    return <div className="rounded-2xl bg-white p-8 text-red-600 shadow-sm">{error || "Результат не найден"}</div>;
-  }
-
-  return (
-    <div className="mx-auto max-w-3xl space-y-6 rounded-2xl bg-panel p-10 shadow-card">
-      <p className="text-sm font-semibold uppercase tracking-wide text-gold">Результат теста</p>
-      <h1 className="text-3xl font-semibold text-white">Ваш уровень: {data.level}</h1>
-      <p className="text-sm text-ink/80">
-        Баллы: <span className="font-semibold text-white">{data.score}</span> из {data.total}
-      </p>
-      {recommended && (
-        <div className="rounded-2xl bg-slate/60 p-5 shadow-inner">
-          <p className="text-sm font-semibold text-ink/80">Рекомендуемый курс</p>
-          <p className="text-lg font-semibold text-white">
-            Рекомендуемый курс: {recommended.name}
-          </p>
-          {recommended.description && <p className="text-sm text-ink/80">{recommended.description}</p>}
+  const busy = loading || isLoading;
+  const content = (() => {
+    if (busy && !data) {
+      return <div className="rounded-2xl bg-white p-8 shadow-sm">Подготавливаем результат...</div>;
+    }
+    if (error || !data) {
+      return renderError(error || DEFAULT_ERROR_MESSAGE, loadResult);
+    }
+    return (
+      <div className="mx-auto max-w-3xl space-y-6 rounded-2xl bg-panel p-10 shadow-card">
+        <p className="text-sm font-semibold uppercase tracking-wide text-gold">Результат теста</p>
+        <h1 className="text-3xl font-semibold text-white">Ваш уровень: {data.level}</h1>
+        <p className="text-sm text-ink/80">
+          Баллы: <span className="font-semibold text-white">{data.score}</span> из {data.total}
+        </p>
+        {recommended && (
+          <div className="rounded-2xl bg-slate/60 p-5 shadow-inner">
+            <p className="text-sm font-semibold text-ink/80">Рекомендуемый курс</p>
+            <p className="text-lg font-semibold text-white">Рекомендуемый курс: {recommended.name}</p>
+            {recommended.description && <p className="text-sm text-ink/80">{recommended.description}</p>}
+            <Link
+              href={recommended.slug ? `/course/${recommended.slug}` : "/courses"}
+              className="mt-3 inline-flex rounded-xl bg-gold px-5 py-3 text-sm font-semibold text-slateDeep shadow-soft transition hover:bg-goldDark"
+            >
+              Начать обучение
+            </Link>
+          </div>
+        )}
+        <div className="flex flex-wrap gap-3">
           <Link
-            href={recommended.slug ? `/course/${recommended.slug}` : "/courses"}
-            className="mt-3 inline-flex rounded-xl bg-gold px-5 py-3 text-sm font-semibold text-slateDeep shadow-soft transition hover:bg-goldDark"
+            href="/courses"
+            className="rounded-xl bg-gold px-5 py-3 text-sm font-semibold text-slateDeep shadow-soft transition hover:bg-goldDark"
           >
-            Начать обучение
+            К списку курсов
+          </Link>
+          <Link
+            href="/level-test"
+            className="rounded-xl bg-slate px-5 py-3 text-sm font-semibold text-ink transition hover:bg-slateDeep hover:text-white"
+          >
+            Пройти снова
           </Link>
         </div>
-      )}
-      <div className="flex flex-wrap gap-3">
-        <Link
-          href="/courses"
-          className="rounded-xl bg-gold px-5 py-3 text-sm font-semibold text-slateDeep shadow-soft transition hover:bg-goldDark"
-        >
-          К списку курсов
-        </Link>
-        <Link
-          href="/level-test"
-          className="rounded-xl bg-slate px-5 py-3 text-sm font-semibold text-ink transition hover:bg-slateDeep hover:text-white"
-        >
-          Пройти снова
-        </Link>
       </div>
-    </div>
+    );
+  })();
+
+  return (
+    <ErrorBoundary
+      onReset={loadResult}
+      fallback={({ error: boundaryError, reset }) =>
+        renderError(boundaryError?.message || DEFAULT_ERROR_MESSAGE, () => {
+          reset();
+          loadResult();
+        })
+      }
+    >
+      {content}
+    </ErrorBoundary>
   );
 }
